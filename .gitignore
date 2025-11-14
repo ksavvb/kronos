@@ -1,0 +1,114 @@
+# Kronos Build Artifacts
+
+# Compiled binary
+kronos
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Linker output
+*.ilk
+*.map
+*.exp
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Static analysis
+*.gcda
+*.gcno
+*.gcov
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Core dumps
+core
+core.*
+
+# Editor and IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+.DS_Store
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+*.cache
+
+# Dependency directories
+.deps/
+.libs/
+
+# Build directories
+build/
+dist/
+bin/
+obj/
+
+# Archive/backup files
+*.zip
+*.tar.gz
+*.rar
+
+# Python (for archived implementation)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+venv/
+env/
+
+# Tags and indexing
+tags
+TAGS
+.tags
+.TAGS
+cscope.out
+
+# Valgrind
+vgcore.*
+*.valgrind
+
+# Test outputs
+test_output/
+*.test
+
