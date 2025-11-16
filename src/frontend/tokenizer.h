@@ -8,7 +8,9 @@ typedef enum {
     TOK_NUMBER,
     TOK_STRING,
     TOK_SET,
+    TOK_LET,
     TOK_TO,
+    TOK_AS,
     TOK_IF,
     TOK_FOR,
     TOK_WHILE,
@@ -18,6 +20,9 @@ typedef enum {
     TOK_WITH,
     TOK_CALL,
     TOK_RETURN,
+    TOK_TRUE,
+    TOK_FALSE,
+    TOK_NULL,
     TOK_IS,
     TOK_EQUAL,
     TOK_NOT,
@@ -41,24 +46,23 @@ typedef enum {
 } TokenType;
 
 typedef struct {
-    TokenType type;
-    char* text;
-    size_t length;
-    int indent_level; // For INDENT tokens
+  TokenType type;
+  char *text;
+  size_t length;
+  int indent_level; // For INDENT tokens
 } Token;
 
 typedef struct {
-    Token* tokens;
-    size_t count;
-    size_t capacity;
+  Token *tokens;
+  size_t count;
+  size_t capacity;
 } TokenArray;
 
 // Tokenize source code
-TokenArray* tokenize(const char* source);
-void token_array_free(TokenArray* array);
+TokenArray *tokenize(const char *source);
+void token_array_free(TokenArray *array);
 
 // Debug
-void token_print(Token* token);
+void token_print(Token *token);
 
 #endif // KRONOS_TOKENIZER_H
-
