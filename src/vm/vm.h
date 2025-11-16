@@ -7,6 +7,18 @@
 
 #define STACK_MAX 1024
 #define GLOBALS_MAX 256
+#define FUNCTIONS_MAX 128
+
+// Function definition
+typedef struct {
+    char* name;
+    char** params;
+    size_t param_count;
+    uint8_t* bytecode;
+    size_t bytecode_size;
+    KronosValue** constants;
+    size_t const_count;
+} Function;
 
 // Virtual machine state
 typedef struct KronosVM {
@@ -21,11 +33,18 @@ typedef struct KronosVM {
     } globals[GLOBALS_MAX];
     size_t global_count;
     
+    // Functions
+    Function* functions[FUNCTIONS_MAX];
+    size_t function_count;
+    
     // Instruction pointer
     uint8_t* ip;
     
     // Current bytecode
     Bytecode* bytecode;
+    
+    // Return value register
+    KronosValue* return_value;
 } KronosVM;
 
 // VM lifecycle
@@ -38,6 +57,11 @@ int vm_execute(KronosVM* vm, Bytecode* bytecode);
 // Variable management
 void vm_set_global(KronosVM* vm, const char* name, KronosValue* value);
 KronosValue* vm_get_global(KronosVM* vm, const char* name);
+
+// Function management
+void vm_define_function(KronosVM* vm, Function* func);
+Function* vm_get_function(KronosVM* vm, const char* name);
+void function_free(Function* func);
 
 #endif // KRONOS_VM_H
 
