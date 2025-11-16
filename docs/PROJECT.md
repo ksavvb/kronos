@@ -5,6 +5,7 @@ A comprehensive overview of the Kronos programming language implementation.
 ## Project Summary
 
 **Kronos** is a custom programming language built in C with human-readable syntax, featuring:
+
 - ⚡ **Fast Execution:** Bytecode VM for Python/JS-level performance
 - 🔄 **Automatic Memory Management:** Reference-counting garbage collection
 - 🚀 **Direct Execution:** No build step - just run `.kr` files
@@ -25,6 +26,7 @@ Standards:       C11
 ## Architecture
 
 ### High-Level Pipeline
+
 ```
 Source Code (.kr)
     ↓
@@ -42,24 +44,29 @@ Output
 ### Component Breakdown
 
 #### 1. Frontend (Lexical & Syntax Analysis)
+
 **Location:** `src/frontend/`
 
 **Tokenizer (`tokenizer.c/h`):**
+
 - Converts source code into tokens
 - Recognizes keywords, operators, literals
 - Handles indentation-based syntax
 - ~300 lines of code
 
 **Parser (`parser.c/h`):**
+
 - Builds Abstract Syntax Tree from tokens
 - Implements recursive descent parsing
 - Validates syntax structure
 - ~550 lines of code
 
 #### 2. Compiler (Code Generation)
+
 **Location:** `src/compiler/`
 
 **Compiler (`compiler.c/h`):**
+
 - Converts AST to bytecode instructions
 - Manages constant pool
 - Optimizes jump offsets
@@ -67,6 +74,7 @@ Output
 - ~390 lines of code
 
 **Instruction Set:**
+
 ```
 OP_LOAD_CONST     # Load constant
 OP_LOAD_VAR       # Load variable
@@ -80,9 +88,11 @@ OP_HALT           # Stop execution
 ```
 
 #### 3. Virtual Machine (Execution Engine)
+
 **Location:** `src/vm/`
 
 **VM (`vm.c/h`):**
+
 - Stack-based execution model
 - Variable storage (globals)
 - Instruction dispatch loop
@@ -92,9 +102,11 @@ OP_HALT           # Stop execution
 **Global Vars:** 256 maximum
 
 #### 4. Runtime System (Memory & Values)
+
 **Location:** `src/core/`
 
 **Runtime (`runtime.c/h`):**
+
 - Dynamic value system (union type)
 - Reference counting for memory management
 - String interning for optimization
@@ -102,6 +114,7 @@ OP_HALT           # Stop execution
 - ~250 lines of code
 
 **Value Types:**
+
 - `VAL_NUMBER` - Floating point numbers
 - `VAL_STRING` - Dynamic strings
 - `VAL_BOOL` - Boolean values
@@ -111,6 +124,7 @@ OP_HALT           # Stop execution
 - `VAL_CHANNEL` - Channels (future)
 
 **Garbage Collector (`gc.c/h`):**
+
 - Reference counting for automatic memory
 - Object tracking for leak detection
 - Cycle detection preparation
@@ -178,6 +192,7 @@ make install      # Install to /usr/local/bin
 6. Link all objects with math library (`-lm`)
 
 **Compiler Flags:**
+
 - `-Wall -Wextra` - All warnings
 - `-std=c11` - C11 standard
 - `-O2` - Optimization level 2
@@ -188,18 +203,21 @@ make install      # Install to /usr/local/bin
 ### Reference Counting Model
 
 **Allocation:**
+
 ```c
 KronosValue* val = value_new_number(42);
 // val->refcount = 1
 ```
 
 **Retain (increment):**
+
 ```c
 value_retain(val);
 // val->refcount = 2
 ```
 
 **Release (decrement):**
+
 ```c
 value_release(val);
 // val->refcount = 1
@@ -207,6 +225,7 @@ value_release(val);
 ```
 
 ### GC Statistics
+
 - Tracks allocated bytes
 - Counts active objects
 - Prepares for cycle detection
@@ -231,6 +250,7 @@ value_release(val);
 ### 🚧 Planned (Future Phases)
 
 #### Phase 4: Complete Language Features
+
 - [ ] Functions & return values
 - [ ] Function calls with arguments
 - [ ] Else/else if statements
@@ -239,12 +259,14 @@ value_release(val);
 - [ ] Comments
 
 #### Phase 5: Concurrency
+
 - [ ] Goroutine-style threads
 - [ ] Channels for communication
 - [ ] Select statements
 - [ ] Cooperative scheduler
 
 #### Phase 6: Fault Tolerance
+
 - [ ] Exception handling (try/catch/finally)
 - [ ] Supervisor trees
 - [ ] Process monitoring
@@ -253,15 +275,18 @@ value_release(val);
 ## Performance Characteristics
 
 ### Startup Time
+
 - **Target:** < 50ms
 - **Actual:** ~10-20ms (faster than target!)
 
 ### Execution Speed
+
 - Simple arithmetic: ~1M ops/sec
 - Loop iteration: ~500K iterations/sec
 - Print operations: I/O bound
 
 ### Memory Usage
+
 - Base VM: ~10KB
 - Per value: 32-48 bytes
 - String interning reduces memory for duplicates
@@ -269,13 +294,16 @@ value_release(val);
 ## Testing
 
 ### Manual Tests
+
 All examples in `examples/` directory serve as test cases:
+
 - Basic operations
 - Complex expressions
 - Control flow
 - Edge cases
 
 ### Running Tests
+
 ```bash
 # Individual test
 ./kronos examples/test.kr
@@ -287,13 +315,16 @@ for f in examples/*.kr; do ./kronos "$f"; done
 ## Documentation
 
 ### User Documentation
+
 - **README.md** - Project overview and quick start
-- **SYNTAX.md** - Complete syntax reference (600+ lines)
-- **QUICKREF.md** - Quick reference card
+- **docs/SYNTAX.md** - Complete syntax reference (600+ lines)
+- **docs/QUICKREF.md** - Quick reference card
 - **examples/README.md** - Example guide
 
 ### Developer Documentation
-- **PROJECT.md** - This file (architecture & internals)
+
+- **docs/PROJECT.md** - This file (architecture & internals)
+- **docs/IMPLEMENTATION_STATUS.md** - Implementation details
 - **Header files** - Inline API documentation
 - **Code comments** - Implementation details
 
@@ -323,6 +354,7 @@ for f in examples/*.kr; do ./kronos "$f"; done
 ## Code Quality
 
 ### Standards Followed
+
 - C11 standard compliance
 - Consistent naming conventions
 - Memory safety (no leaks in normal execution)
@@ -330,12 +362,14 @@ for f in examples/*.kr; do ./kronos "$f"; done
 - Modular design with clear separation
 
 ### Compiler Warnings
+
 - Zero warnings in production build
 - One benign warning (unused function declaration)
 
 ## Future Roadmap
 
 ### Version 0.2.0 (Next Release)
+
 - Complete function implementation
 - Else/else if statements
 - Logical operators (AND, OR)
@@ -343,12 +377,14 @@ for f in examples/*.kr; do ./kronos "$f"; done
 - Basic standard library
 
 ### Version 0.3.0
+
 - Lists and indexing
 - String operations
 - File I/O
 - More data types
 
 ### Version 1.0.0
+
 - Full goroutine support
 - Exception handling
 - Supervisor trees
@@ -357,28 +393,31 @@ for f in examples/*.kr; do ./kronos "$f"; done
 
 ## Performance Goals vs Reality
 
-| Metric | Goal | Achieved | Status |
-|--------|------|----------|--------|
-| Startup Time | < 50ms | ~15ms | ✅ Exceeded |
-| Binary Size | < 100KB | ~57KB | ✅ Exceeded |
-| Memory Safety | No leaks | Clean | ✅ Achieved |
-| Execution Speed | Python-level | Similar | ✅ Achieved |
-| Build Time | < 5s | ~2s | ✅ Exceeded |
+| Metric          | Goal         | Achieved | Status      |
+| --------------- | ------------ | -------- | ----------- |
+| Startup Time    | < 50ms       | ~15ms    | ✅ Exceeded |
+| Binary Size     | < 100KB      | ~57KB    | ✅ Exceeded |
+| Memory Safety   | No leaks     | Clean    | ✅ Achieved |
+| Execution Speed | Python-level | Similar  | ✅ Achieved |
+| Build Time      | < 5s         | ~2s      | ✅ Exceeded |
 
 ## Comparison with Other Languages
 
 ### Syntax Similarity
+
 - **Python-like:** Indentation-based blocks
 - **Ruby-like:** Natural language keywords
 - **Go-like:** Planned concurrency model
 - **Erlang-like:** Planned fault tolerance
 
 ### Performance
+
 - **Faster than:** CPython (interpreted)
 - **Similar to:** PyPy (optimized Python)
 - **Slower than:** Native compiled (C, Rust, Go)
 
 ### Use Cases
+
 - Learning programming concepts
 - Scripting and automation
 - Rapid prototyping
@@ -388,6 +427,7 @@ for f in examples/*.kr; do ./kronos "$f"; done
 ## Contributing
 
 ### Project Principles
+
 1. **Readability First:** Code should be clear
 2. **Performance Matters:** Optimize hot paths
 3. **Memory Safety:** No leaks, use valgrind
@@ -395,6 +435,7 @@ for f in examples/*.kr; do ./kronos "$f"; done
 5. **Document Well:** Code + docs together
 
 ### Code Style
+
 - 4-space indentation
 - K&R brace style
 - Descriptive variable names
@@ -407,6 +448,7 @@ MIT License - Free to use, modify, and distribute
 ## Credits
 
 Built from scratch in C following modern VM design principles, inspired by:
+
 - Python's simplicity
 - Lua's VM design
 - Go's concurrency
@@ -417,4 +459,3 @@ Built from scratch in C following modern VM design principles, inspired by:
 **Project Status:** ✅ Production Ready (Core Features)
 **Last Updated:** November 2025
 **Version:** 0.1.0
-

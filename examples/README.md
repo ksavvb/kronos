@@ -5,23 +5,29 @@ This directory contains example programs demonstrating various features of the K
 ## Basic Examples
 
 ### hello.kr
+
 Simple hello world program demonstrating:
+
 - String printing
 - Variable assignment
 - Basic output
 
 **Run:**
+
 ```bash
 ./kronos examples/hello.kr
 ```
 
 ### test.kr
+
 Basic demonstration of:
+
 - Variables and assignment
 - Arithmetic operations
 - Print statements
 
 **Run:**
+
 ```bash
 ./kronos examples/test.kr
 ```
@@ -29,19 +35,24 @@ Basic demonstration of:
 ## Feature Examples
 
 ### arithmetic.kr
+
 Comprehensive arithmetic operations:
+
 - Addition (`plus`)
 - Subtraction (`minus`)
 - Multiplication (`times`)
 - Division (`divided by`)
 
 **Run:**
+
 ```bash
 ./kronos examples/arithmetic.kr
 ```
 
 ### conditionals.kr
+
 Conditional statement examples:
+
 - `if` statements
 - Comparison operators
   - `is greater than`
@@ -49,17 +60,21 @@ Conditional statement examples:
   - `is equal`
 
 **Run:**
+
 ```bash
 ./kronos examples/conditionals.kr
 ```
 
 ### loops.kr
+
 Loop demonstrations:
+
 - `for` loops with `range`
 - `while` loops
 - Loop counters and conditions
 
 **Run:**
+
 ```bash
 ./kronos examples/loops.kr
 ```
@@ -67,7 +82,9 @@ Loop demonstrations:
 ## Advanced Examples
 
 ### syntax_showcase.kr
+
 Comprehensive demonstration of all language features:
+
 - Variables
 - Arithmetic
 - Comparisons
@@ -78,18 +95,22 @@ Comprehensive demonstration of all language features:
 - Conditional logic
 
 **Run:**
+
 ```bash
 ./kronos examples/syntax_showcase.kr
 ```
 
 ### fizzbuzz.kr
+
 FizzBuzz implementation showing:
+
 - Loop iteration
 - Modulo-like operations
 - Multiple conditionals
 - Complex logic
 
 **Run:**
+
 ```bash
 ./kronos examples/fizzbuzz.kr
 ```
@@ -97,11 +118,13 @@ FizzBuzz implementation showing:
 ## Running Examples
 
 ### Run a specific example:
+
 ```bash
 ./kronos examples/<filename>.kr
 ```
 
 ### Run all examples:
+
 ```bash
 for file in examples/*.kr; do
     echo "=== Running $file ==="
@@ -117,6 +140,7 @@ done
 3. Run with: `./kronos your_file.kr`
 
 ### Template:
+
 ```kronos
 print "My Program"
 print ""
@@ -133,6 +157,7 @@ for i in range 1 to 5:
 Each example produces formatted output showing the results of the operations. For instance:
 
 **hello.kr output:**
+
 ```
 Hello, World!
 Welcome to Kronos programming language!
@@ -140,6 +165,7 @@ Nice to meet you!
 ```
 
 **arithmetic.kr output:**
+
 ```
 Testing arithmetic operations:
 13
@@ -151,6 +177,7 @@ Testing arithmetic operations:
 ## Learning Path
 
 Recommended order for learning:
+
 1. **hello.kr** - Start here for basics
 2. **test.kr** - Simple variables and operations
 3. **arithmetic.kr** - Learn arithmetic operations
@@ -162,20 +189,26 @@ Recommended order for learning:
 ## Troubleshooting
 
 ### "File not found" error
+
 Make sure you're in the kronos root directory:
+
 ```bash
 cd /path/to/kronos
 ./kronos examples/hello.kr
 ```
 
 ### Syntax errors
+
 Check that:
+
 - Colons (`:`) are placed after conditions/loop headers
 - Indentation is consistent (4 spaces recommended)
 - All variables are defined before use
 
 ### Unexpected output
+
 Verify:
+
 - Variable names are spelled correctly
 - Arithmetic operations use correct keywords
 - Loop ranges are set properly
@@ -183,6 +216,7 @@ Verify:
 ## Contributing Examples
 
 Have a great example? Consider adding it:
+
 1. Create a `.kr` file in this directory
 2. Add documentation comments (when supported)
 3. Test thoroughly
@@ -190,11 +224,10 @@ Have a great example? Consider adding it:
 
 ## Additional Resources
 
-- [SYNTAX.md](../SYNTAX.md) - Complete syntax reference
-- [QUICKREF.md](../QUICKREF.md) - Quick reference guide
+- [SYNTAX.md](../docs/SYNTAX.md) - Complete syntax reference
+- [QUICKREF.md](../docs/QUICKREF.md) - Quick reference guide
 - [README.md](../README.md) - Main project documentation
 
 ---
 
 Happy coding in Kronos! 🚀
-
