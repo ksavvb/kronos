@@ -1,8 +1,18 @@
 /*
- * Kronos Language Server Protocol Implementation
+ * Kronos Language Server Protocol Implementation (STUB)
  *
- * This LSP server provides real-time diagnostics, autocomplete, and other
- * IDE features for Kronos files.
+ * This is a minimal LSP server stub providing basic completion support.
+ * It uses simplified string-based parsing and hardcoded values for prototyping.
+ *
+ * Current capabilities:
+ * - Keyword completion (set, let, if, for, while, function, etc.)
+ * - Basic text synchronization (didOpen/didChange tracked but not parsed)
+ *
+ * Missing critical features (see MISSING_FEATURES.md):
+ * - Proper JSON-RPC request/response parsing
+ * - Accurate diagnostics with real line/column numbers
+ * - Go-to-definition, find references, hover, rename
+ * - Document symbols, code actions, formatting
  *
  * Usage: ./kronos-lsp
  * Communicates via stdin/stdout using JSON-RPC 2.0
@@ -93,9 +103,7 @@ static void handle_initialize(const char *id) {
       "{"
       "\"capabilities\":{"
       "\"textDocumentSync\":1,"
-      "\"diagnosticProvider\":true,"
-      "\"completionProvider\":{\"triggerCharacters\":[\" \"]},"
-      "\"hoverProvider\":true"
+      "\"completionProvider\":{\"triggerCharacters\":[\" \"]}"
       "}"
       "}";
   send_response(id, capabilities);
@@ -138,18 +146,25 @@ int main(void) {
   fprintf(stderr, "Kronos LSP Server starting...\n");
 
   while (fgets(buffer, sizeof(buffer), stdin)) {
-    // Simple JSON-RPC parser (production should use proper JSON library)
+    // NOTE: This is a STUB implementation using strstr() for quick prototyping.
+    // Production LSP requires proper JSON-RPC parsing to extract:
+    // - Request IDs from each message
+    // - textDocument.uri and text from didOpen/didChange
+    // - Position info from completion requests
+    // TODO: Implement proper JSON parser or use library (e.g., cJSON)
     if (strstr(buffer, "initialize")) {
       handle_initialize("1");
     } else if (strstr(buffer, "shutdown")) {
       handle_shutdown("2");
       break;
     } else if (strstr(buffer, "textDocument/didOpen")) {
-      // Extract URI and text (simplified)
+      // STUB: Uses hardcoded URI/text instead of parsing from request
       handle_did_open("file:///test.kr", "set x to 10");
     } else if (strstr(buffer, "textDocument/didChange")) {
+      // STUB: Uses hardcoded URI/text instead of parsing from request
       handle_did_change("file:///test.kr", "set x to 10");
     } else if (strstr(buffer, "textDocument/completion")) {
+      // STUB: Uses hardcoded ID instead of parsing from request
       handle_completion("3");
     }
   }
