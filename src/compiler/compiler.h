@@ -81,7 +81,7 @@ void bytecode_free(Bytecode *bytecode);
  * Disassembles the bytecode instruction-by-instruction and prints to stdout.
  * Shows opcode names, operands, and references to the constant pool.
  *
- * @param bytecode Bytecode to print (must not be NULL).
+ * @param bytecode Bytecode to print (may be NULL; prints "Bytecode: NULL" if so).
  * @note This is a debugging/development tool, not for production use.
  * @note Output format is subject to change.
  */
