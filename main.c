@@ -76,18 +76,60 @@ int kronos_run_file(KronosVM *vm, const char *filepath) {
   }
 
   // Get file size
-  fseek(file, 0, SEEK_END);
-  long size = ftell(file);
-  fseek(file, 0, SEEK_SET);
-
-  // Read contents
-  char *source = malloc(size + 1);
-  if (!source) {
+  if (fseek(file, 0, SEEK_END) != 0) {
+    fprintf(stderr, "Error: Failed to seek to end of file: %s\n", filepath);
     fclose(file);
     return -1;
   }
 
-  size_t read_size = fread(source, 1, size, file);
+  long size = ftell(file);
+  if (size < 0) {
+    fprintf(stderr, "Error: Failed to determine file size: %s\n", filepath);
+    fclose(file);
+    return -1;
+  }
+
+  // Check for unreasonably large files (protect against overflow)
+  if (size > SIZE_MAX - 1) {
+    fprintf(stderr, "Error: File too large to read: %s\n", filepath);
+    fclose(file);
+    return -1;
+  }
+
+  if (fseek(file, 0, SEEK_SET) != 0) {
+    fprintf(stderr, "Error: Failed to seek to start of file: %s\n", filepath);
+    fclose(file);
+    return -1;
+  }
+
+  // Read contents - safe to cast after size validation
+  size_t length = (size_t)size;
+  char *source = malloc(length + 1);
+  if (!source) {
+    fprintf(stderr, "Error: Failed to allocate memory for file contents\n");
+    fclose(file);
+    return -1;
+  }
+
+  size_t read_size = fread(source, 1, length, file);
+
+  // Check for read errors
+  if (ferror(file)) {
+    fprintf(stderr, "Error: Failed to read file: %s\n", filepath);
+    free(source);
+    fclose(file);
+    return -1;
+  }
+
+  // Check for unexpected partial read (not EOF)
+  if (read_size < length && !feof(file)) {
+    fprintf(stderr, "Error: Incomplete read from file: %s\n", filepath);
+    free(source);
+    fclose(file);
+    return -1;
+  }
+
+  // Safe to write NUL terminator (buffer is length+1, read_size <= length)
   source[read_size] = '\0';
   fclose(file);
 
@@ -153,7 +195,8 @@ int main(int argc, char **argv) {
     int result = kronos_run_file(vm, argv[1]);
     kronos_vm_free(vm);
 
-    return result;
+    // Normalize exit code: -1 becomes 1, 0 stays 0
+    return (result == -1) ? 1 : result;
   } else {
     // Run REPL
     kronos_repl();
