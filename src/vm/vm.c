@@ -20,12 +20,12 @@ KronosVM *vm_new(void) {
   // Initialize Pi constant (100 decimal places) - immutable
   KronosValue *pi_value = value_new_number(
       3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679);
-  
+
   // Manually add Pi as immutable global
   if (vm->global_count < GLOBALS_MAX) {
     vm->globals[vm->global_count].name = strdup("Pi");
     vm->globals[vm->global_count].value = pi_value;
-    vm->globals[vm->global_count].is_mutable = false;  // Immutable!
+    vm->globals[vm->global_count].is_mutable = false; // Immutable!
     vm->globals[vm->global_count].type_name = strdup("number");
     value_retain(pi_value);
     vm->global_count++;
@@ -94,7 +94,10 @@ void function_free(Function *func) {
 // Define a function
 void vm_define_function(KronosVM *vm, Function *func) {
   if (vm->function_count >= FUNCTIONS_MAX) {
-    fprintf(stderr, "Too many functions\n");
+    fprintf(
+        stderr,
+        "Error: Maximum number of functions exceeded (%d functions allowed)\n",
+        FUNCTIONS_MAX);
     return;
   }
 
@@ -114,7 +117,8 @@ Function *vm_get_function(KronosVM *vm, const char *name) {
 // Stack operations
 static void push(KronosVM *vm, KronosValue *value) {
   if (vm->stack_top >= vm->stack + STACK_MAX) {
-    fprintf(stderr, "Stack overflow\n");
+    fprintf(stderr, "Error: Stack overflow (too many nested operations or "
+                    "function calls)\n");
     return;
   }
   *vm->stack_top = value;
@@ -124,7 +128,8 @@ static void push(KronosVM *vm, KronosValue *value) {
 
 static KronosValue *pop(KronosVM *vm) {
   if (vm->stack_top <= vm->stack) {
-    fprintf(stderr, "Stack underflow\n");
+    fprintf(stderr, "Error: Internal stack error (this shouldn't happen - "
+                    "please report this bug)\n");
     return value_new_nil();
   }
   vm->stack_top--;
@@ -137,23 +142,27 @@ static KronosValue *peek(KronosVM *vm, int distance) {
 }
 
 // Global variable management
-void vm_set_global(KronosVM *vm, const char *name, KronosValue *value, bool is_mutable, const char *type_name) {
+void vm_set_global(KronosVM *vm, const char *name, KronosValue *value,
+                   bool is_mutable, const char *type_name) {
   // Check if variable already exists
   for (size_t i = 0; i < vm->global_count; i++) {
     if (strcmp(vm->globals[i].name, name) == 0) {
       // Check if it's immutable
       if (!vm->globals[i].is_mutable) {
-        fprintf(stderr, "Error: Cannot reassign immutable variable '%s'\n", name);
+        fprintf(stderr, "Error: Cannot reassign immutable variable '%s'\n",
+                name);
         return;
       }
-      
+
       // Check type if specified
-      if (vm->globals[i].type_name != NULL && !value_is_type(value, vm->globals[i].type_name)) {
-        fprintf(stderr, "Error: Type mismatch for variable '%s': expected '%s'\n", 
-                name, vm->globals[i].type_name);
+      if (vm->globals[i].type_name != NULL &&
+          !value_is_type(value, vm->globals[i].type_name)) {
+        fprintf(stderr,
+                "Error: Type mismatch for variable '%s': expected '%s'\n", name,
+                vm->globals[i].type_name);
         return;
       }
-      
+
       value_release(vm->globals[i].value);
       vm->globals[i].value = value;
       value_retain(value);
@@ -163,14 +172,17 @@ void vm_set_global(KronosVM *vm, const char *name, KronosValue *value, bool is_m
 
   // Add new global
   if (vm->global_count >= GLOBALS_MAX) {
-    fprintf(stderr, "Too many global variables\n");
+    fprintf(stderr,
+            "Error: Maximum number of global variables exceeded (%d allowed)\n",
+            GLOBALS_MAX);
     return;
   }
 
   vm->globals[vm->global_count].name = strdup(name);
   vm->globals[vm->global_count].value = value;
   vm->globals[vm->global_count].is_mutable = is_mutable;
-  vm->globals[vm->global_count].type_name = type_name ? strdup(type_name) : NULL;
+  vm->globals[vm->global_count].type_name =
+      type_name ? strdup(type_name) : NULL;
   value_retain(value);
   vm->global_count++;
 }
@@ -182,12 +194,13 @@ KronosValue *vm_get_global(KronosVM *vm, const char *name) {
     }
   }
 
-  fprintf(stderr, "Undefined variable: %s\n", name);
+  fprintf(stderr, "Error: Undefined variable '%s'\n", name);
   return value_new_nil();
 }
 
 // Set local variable in current frame
-void vm_set_local(CallFrame *frame, const char *name, KronosValue *value, bool is_mutable, const char *type_name) {
+void vm_set_local(CallFrame *frame, const char *name, KronosValue *value,
+                  bool is_mutable, const char *type_name) {
   if (!frame)
     return;
 
@@ -196,17 +209,20 @@ void vm_set_local(CallFrame *frame, const char *name, KronosValue *value, bool i
     if (strcmp(frame->locals[i].name, name) == 0) {
       // Check if it's immutable
       if (!frame->locals[i].is_mutable) {
-        fprintf(stderr, "Error: Cannot reassign immutable local variable '%s'\n", name);
+        fprintf(stderr,
+                "Error: Cannot reassign immutable local variable '%s'\n", name);
         return;
       }
-      
+
       // Check type if specified
-      if (frame->locals[i].type_name != NULL && !value_is_type(value, frame->locals[i].type_name)) {
-        fprintf(stderr, "Error: Type mismatch for local variable '%s': expected '%s'\n", 
+      if (frame->locals[i].type_name != NULL &&
+          !value_is_type(value, frame->locals[i].type_name)) {
+        fprintf(stderr,
+                "Error: Type mismatch for local variable '%s': expected '%s'\n",
                 name, frame->locals[i].type_name);
         return;
       }
-      
+
       value_release(frame->locals[i].value);
       frame->locals[i].value = value;
       value_retain(value);
@@ -216,14 +232,18 @@ void vm_set_local(CallFrame *frame, const char *name, KronosValue *value, bool i
 
   // Add new local variable
   if (frame->local_count >= LOCALS_MAX) {
-    fprintf(stderr, "Too many local variables\n");
+    fprintf(stderr,
+            "Error: Maximum number of local variables exceeded in function (%d "
+            "allowed)\n",
+            LOCALS_MAX);
     return;
   }
 
   frame->locals[frame->local_count].name = strdup(name);
   frame->locals[frame->local_count].value = value;
   frame->locals[frame->local_count].is_mutable = is_mutable;
-  frame->locals[frame->local_count].type_name = type_name ? strdup(type_name) : NULL;
+  frame->locals[frame->local_count].type_name =
+      type_name ? strdup(type_name) : NULL;
   value_retain(value);
   frame->local_count++;
 }
@@ -285,7 +305,8 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
     case OP_LOAD_VAR: {
       KronosValue *name_val = read_constant(vm);
       if (name_val->type != VAL_STRING) {
-        fprintf(stderr, "Variable name must be string\n");
+        fprintf(stderr,
+                "Error: Internal error - variable name is not a string\n");
         return -1;
       }
       KronosValue *value = vm_get_variable(vm, name_val->as.string.data);
@@ -296,15 +317,16 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
     case OP_STORE_VAR: {
       KronosValue *name_val = read_constant(vm);
       if (name_val->type != VAL_STRING) {
-        fprintf(stderr, "Variable name must be string\n");
+        fprintf(stderr,
+                "Error: Internal error - variable name is not a string\n");
         return -1;
       }
       KronosValue *value = pop(vm);
-      
+
       // Read mutability flag
       uint8_t is_mutable_byte = read_byte(vm);
       bool is_mutable = (is_mutable_byte == 1);
-      
+
       // Read type name (if specified)
       uint8_t type_idx = read_byte(vm);
       const char *type_name = NULL;
@@ -317,9 +339,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
 
       // If in function, set as local variable; otherwise, set as global
       if (vm->current_frame) {
-        vm_set_local(vm->current_frame, name_val->as.string.data, value, is_mutable, type_name);
+        vm_set_local(vm->current_frame, name_val->as.string.data, value,
+                     is_mutable, type_name);
       } else {
-        vm_set_global(vm, name_val->as.string.data, value, is_mutable, type_name);
+        vm_set_global(vm, name_val->as.string.data, value, is_mutable,
+                      type_name);
       }
 
       value_release(value); // Release our reference
@@ -343,7 +367,10 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         push(vm, result);
         value_release(result); // Push retains it
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr, "Error: Cannot add - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -360,7 +387,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         push(vm, result);
         value_release(result);
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr,
+                "Error: Cannot subtract - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -377,7 +408,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         push(vm, result);
         value_release(result);
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr,
+                "Error: Cannot multiply - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -391,7 +426,7 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
 
       if (a->type == VAL_NUMBER && b->type == VAL_NUMBER) {
         if (b->as.number == 0) {
-          fprintf(stderr, "Division by zero\n");
+          fprintf(stderr, "Error: Cannot divide by zero\n");
           value_release(a);
           value_release(b);
           return -1;
@@ -400,7 +435,10 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         push(vm, result);
         value_release(result);
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr, "Error: Cannot divide - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -436,7 +474,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         bool result = a->as.number > b->as.number;
         push(vm, value_new_bool(result));
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr,
+                "Error: Cannot compare - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -452,7 +494,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         bool result = a->as.number < b->as.number;
         push(vm, value_new_bool(result));
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr,
+                "Error: Cannot compare - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -468,7 +514,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         bool result = a->as.number >= b->as.number;
         push(vm, value_new_bool(result));
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr,
+                "Error: Cannot compare - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -484,7 +534,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         bool result = a->as.number <= b->as.number;
         push(vm, value_new_bool(result));
       } else {
-        fprintf(stderr, "Operands must be numbers\n");
+        fprintf(stderr,
+                "Error: Cannot compare - both values must be numbers\n");
+        value_release(a);
+        value_release(b);
+        return -1;
       }
 
       value_release(a);
@@ -522,10 +576,11 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Read parameter names
       for (size_t i = 0; i < param_count; i++) {
         KronosValue *param_val = read_constant(vm);
-        
+
         // Check if parameter name is a reserved constant
         if (strcmp(param_val->as.string.data, "Pi") == 0) {
-          fprintf(stderr, "Error: Cannot use 'Pi' as a parameter name (it is a reserved constant)\n");
+          fprintf(stderr, "Error: Cannot use 'Pi' as a parameter name (it is a "
+                          "reserved constant)\n");
           // Clean up and error
           for (size_t j = 0; j < i; j++) {
             free(func->params[j]);
@@ -535,7 +590,7 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
           free(func);
           return -1;
         }
-        
+
         func->params[i] = strdup(param_val->as.string.data);
       }
 
@@ -588,7 +643,9 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Built-in: add(a, b)
       if (strcmp(func_name, "add") == 0) {
         if (arg_count != 2) {
-          fprintf(stderr, "add() expects 2 arguments, got %d\n", arg_count);
+          fprintf(stderr,
+                  "Error: Function 'add' expects 2 arguments, but got %d\n",
+                  arg_count);
           return -1;
         }
         KronosValue *b = pop(vm);
@@ -598,7 +655,9 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
           push(vm, result);
           value_release(result);
         } else {
-          fprintf(stderr, "add() requires numeric arguments\n");
+          fprintf(
+              stderr,
+              "Error: Function 'add' requires both arguments to be numbers\n");
           push(vm, value_new_nil());
         }
         value_release(a);
@@ -609,8 +668,10 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Built-in: subtract(a, b)
       if (strcmp(func_name, "subtract") == 0) {
         if (arg_count != 2) {
-          fprintf(stderr, "subtract() expects 2 arguments, got %d\n",
-                  arg_count);
+          fprintf(
+              stderr,
+              "Error: Function 'subtract' expects 2 arguments, but got %d\n",
+              arg_count);
           return -1;
         }
         KronosValue *b = pop(vm);
@@ -620,7 +681,8 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
           push(vm, result);
           value_release(result);
         } else {
-          fprintf(stderr, "subtract() requires numeric arguments\n");
+          fprintf(stderr, "Error: Function 'subtract' requires both arguments "
+                          "to be numbers\n");
           push(vm, value_new_nil());
         }
         value_release(a);
@@ -631,8 +693,10 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Built-in: multiply(a, b)
       if (strcmp(func_name, "multiply") == 0) {
         if (arg_count != 2) {
-          fprintf(stderr, "multiply() expects 2 arguments, got %d\n",
-                  arg_count);
+          fprintf(
+              stderr,
+              "Error: Function 'multiply' expects 2 arguments, but got %d\n",
+              arg_count);
           return -1;
         }
         KronosValue *b = pop(vm);
@@ -642,7 +706,8 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
           push(vm, result);
           value_release(result);
         } else {
-          fprintf(stderr, "multiply() requires numeric arguments\n");
+          fprintf(stderr, "Error: Function 'multiply' requires both arguments "
+                          "to be numbers\n");
           push(vm, value_new_nil());
         }
         value_release(a);
@@ -653,14 +718,16 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Built-in: divide(a, b)
       if (strcmp(func_name, "divide") == 0) {
         if (arg_count != 2) {
-          fprintf(stderr, "divide() expects 2 arguments, got %d\n", arg_count);
+          fprintf(stderr,
+                  "Error: Function 'divide' expects 2 arguments, but got %d\n",
+                  arg_count);
           return -1;
         }
         KronosValue *b = pop(vm);
         KronosValue *a = pop(vm);
         if (a->type == VAL_NUMBER && b->type == VAL_NUMBER) {
           if (b->as.number == 0) {
-            fprintf(stderr, "Division by zero\n");
+            fprintf(stderr, "Error: Cannot divide by zero\n");
             push(vm, value_new_nil());
           } else {
             KronosValue *result = value_new_number(a->as.number / b->as.number);
@@ -668,7 +735,8 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
             value_release(result);
           }
         } else {
-          fprintf(stderr, "divide() requires numeric arguments\n");
+          fprintf(stderr, "Error: Function 'divide' requires both arguments to "
+                          "be numbers\n");
           push(vm, value_new_nil());
         }
         value_release(a);
@@ -679,19 +747,22 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Get user-defined function
       Function *func = vm_get_function(vm, func_name);
       if (!func) {
-        fprintf(stderr, "Undefined function: %s\n", func_name);
+        fprintf(stderr, "Error: Undefined function '%s'\n", func_name);
         return -1;
       }
 
       if (arg_count != func->param_count) {
-        fprintf(stderr, "Function %s expects %zu args, got %d\n", func->name,
-                func->param_count, arg_count);
+        fprintf(stderr,
+                "Error: Function '%s' expects %zu argument%s, but got %d\n",
+                func->name, func->param_count,
+                func->param_count == 1 ? "" : "s", arg_count);
         return -1;
       }
 
       // Check call stack size
       if (vm->call_stack_size >= CALL_STACK_MAX) {
-        fprintf(stderr, "Call stack overflow\n");
+        fprintf(stderr, "Error: Maximum call depth exceeded (too many nested "
+                        "function calls)\n");
         return -1;
       }
 
@@ -775,7 +846,10 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
     }
 
     default:
-      fprintf(stderr, "Unknown instruction: %d\n", instruction);
+      fprintf(
+          stderr,
+          "Error: Unknown bytecode instruction: %d (this is a compiler bug)\n",
+          instruction);
       return -1;
     }
   }
