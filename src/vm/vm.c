@@ -151,6 +151,7 @@ void vm_set_global(KronosVM *vm, const char *name, KronosValue *value,
       if (!vm->globals[i].is_mutable) {
         fprintf(stderr, "Error: Cannot reassign immutable variable '%s'\n",
                 name);
+        fflush(stderr);
         exit(1);
       }
 
@@ -160,6 +161,7 @@ void vm_set_global(KronosVM *vm, const char *name, KronosValue *value,
         fprintf(stderr,
                 "Error: Type mismatch for variable '%s': expected '%s'\n", name,
                 vm->globals[i].type_name);
+        fflush(stderr);
         exit(1);
       }
 
@@ -195,6 +197,7 @@ KronosValue *vm_get_global(KronosVM *vm, const char *name) {
   }
 
   fprintf(stderr, "Error: Undefined variable '%s'\n", name);
+  fflush(stderr);
   exit(1);
 }
 
@@ -211,6 +214,7 @@ void vm_set_local(CallFrame *frame, const char *name, KronosValue *value,
       if (!frame->locals[i].is_mutable) {
         fprintf(stderr,
                 "Error: Cannot reassign immutable local variable '%s'\n", name);
+        fflush(stderr);
         exit(1);
       }
 
@@ -220,6 +224,7 @@ void vm_set_local(CallFrame *frame, const char *name, KronosValue *value,
         fprintf(stderr,
                 "Error: Type mismatch for local variable '%s': expected '%s'\n",
                 name, frame->locals[i].type_name);
+        fflush(stderr);
         exit(1);
       }
 
