@@ -12,16 +12,32 @@ A comprehensive overview of the Kronos programming language implementation.
 - 📝 **Natural Syntax:** Human-readable keywords and expressions
 - 🎯 **Production Ready:** Core features fully implemented and tested
 
-## Project Statistics
+## Status & Statistics
+
+**Version:** 0.2.0  
+**Status:** Production Ready ✅
 
 ```
 Language:        C
 Binary Size:     ~57KB
-LOC (Source):    ~2,500 lines
-LOC (Docs):      ~1,041 lines
+LOC (Source):    ~3,500 lines
 File Extension:  .kr
 Standards:       C11
+Test Coverage:   28 tests (16 pass, 12 error)
 ```
+
+## Implemented Features
+
+✅ Variables (immutable `set`, mutable `let`, typed `as <type>`)  
+✅ Data types (numbers, strings, booleans, null)  
+✅ Arithmetic & comparison operators  
+✅ Control flow (if, for, while)  
+✅ Functions (definitions, calls, parameters, returns)  
+✅ Built-ins (Pi constant, math functions)  
+✅ Local variable scoping  
+✅ Safety checks & error handling  
+✅ REPL & file execution  
+✅ Editor support (VSCode/Cursor/Windsurf)
 
 ## Architecture
 
@@ -243,6 +259,44 @@ kronos                           # Main binary
 kronos-lsp                       # LSP server binary
 *.dSYM/                          # Debug symbols (macOS)
 vscode-extension/node_modules/   # npm dependencies
+test_output.txt                  # Test runner output
+```
+
+### Tests (`tests/`)
+
+```
+tests/
+├── README.md                    # Test documentation
+├── pass/                        # Tests that should succeed (16 tests)
+│   ├── 01_variables_immutable.kr
+│   ├── 02_variables_mutable.kr
+│   ├── 03_variables_typed.kr
+│   ├── 04_arithmetic_basic.kr
+│   ├── 05_arithmetic_complex.kr
+│   ├── 06_comparisons.kr
+│   ├── 07_conditionals.kr
+│   ├── 08_loops_for.kr
+│   ├── 09_loops_while.kr
+│   ├── 10_functions_simple.kr
+│   ├── 11_functions_params.kr
+│   ├── 12_functions_local_vars.kr
+│   ├── 13_builtins_pi.kr
+│   ├── 14_builtins_math.kr
+│   ├── 15_booleans.kr
+│   └── 16_null_values.kr
+└── fail/                        # Tests that should error (12 tests)
+    ├── 01_immutable_reassign.kr
+    ├── 02_type_mismatch.kr
+    ├── 03_undefined_variable.kr
+    ├── 04_division_by_zero.kr
+    ├── 05_type_error_arithmetic.kr
+    ├── 06_function_too_many_args.kr
+    ├── 07_function_too_few_args.kr
+    ├── 08_undefined_function.kr
+    ├── 09_pi_reassign.kr
+    ├── 10_builtin_wrong_args.kr
+    ├── 11_builtin_wrong_types.kr
+    └── 12_comparison_type_error.kr
 ```
 
 ## Build System

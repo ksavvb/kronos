@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "parser.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,21 +73,21 @@ static ASTNode *parse_value(Parser *p) {
     node->as.number = atof(tok->text);
     return node;
   }
-  
+
   if (tok->type == TOK_TRUE) {
     consume_any(p);
     ASTNode *node = ast_node_new(AST_BOOL);
     node->as.boolean = true;
     return node;
   }
-  
+
   if (tok->type == TOK_FALSE) {
     consume_any(p);
     ASTNode *node = ast_node_new(AST_BOOL);
     node->as.boolean = false;
     return node;
   }
-  
+
   if (tok->type == TOK_NULL) {
     consume_any(p);
     ASTNode *node = ast_node_new(AST_NULL);
@@ -249,7 +250,7 @@ static ASTNode *parse_condition(Parser *p) {
 static ASTNode *parse_assignment(Parser *p, int indent) {
   Token *first = peek(p, 0);
   bool is_mutable = (first->type == TOK_LET);
-  
+
   // Consume 'set' or 'let'
   if (first->type == TOK_SET) {
     consume(p, TOK_SET);
@@ -258,7 +259,7 @@ static ASTNode *parse_assignment(Parser *p, int indent) {
   } else {
     return NULL;
   }
-  
+
   Token *name = consume(p, TOK_NAME);
   if (!name)
     return NULL;
