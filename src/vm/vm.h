@@ -67,23 +67,163 @@ typedef struct KronosVM {
   Bytecode *bytecode;
 } KronosVM;
 
-// VM lifecycle
+/**
+ * @brief Create a new Kronos virtual machine instance.
+ *
+ * Allocates and initializes a new VM with empty stacks, no variables, and no
+ * functions. The Pi constant is pre-initialized as an immutable global.
+ *
+ * @return Pointer to new VM on success, NULL on allocation failure.
+ * @note Caller must call vm_free() to release resources.
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
 KronosVM *vm_new(void);
+
+/**
+ * @brief Free a Kronos virtual machine and all associated resources.
+ *
+ * Releases all values on the stack, all global/local variables, all functions,
+ * and the VM structure itself. After calling, the vm pointer is invalid.
+ *
+ * @param vm VM to free (may be NULL, in which case this is a no-op).
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
 void vm_free(KronosVM *vm);
 
-// Execute bytecode
+/**
+ * @brief Execute compiled bytecode in the VM.
+ *
+ * Runs the bytecode instruction-by-instruction until completion or error.
+ * The bytecode remains owned by the caller and is not modified.
+ *
+ * @param vm VM instance to execute on (must not be NULL).
+ * @param bytecode Compiled bytecode to execute (must not be NULL, caller
+ * retains ownership).
+ * @return 0 on successful execution, -1 on runtime error (e.g., type error,
+ * stack underflow).
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
 int vm_execute(KronosVM *vm, Bytecode *bytecode);
 
-// Variable management
-void vm_set_global(KronosVM *vm, const char *name, KronosValue *value, bool is_mutable, const char *type_name);
-KronosValue *vm_get_global(KronosVM *vm, const char *name);
-void vm_set_local(CallFrame *frame, const char *name, KronosValue *value, bool is_mutable, const char *type_name);
-KronosValue *vm_get_local(CallFrame *frame, const char *name);
-KronosValue *vm_get_variable(KronosVM *vm, const char *name); // Try local, then global
+/**
+ * @brief Set or update a global variable in the VM.
+ *
+ * If the variable already exists:
+ * - Checks mutability (errors if reassigning an immutable variable).
+ * - Checks type (errors if type_name was set and new value doesn't match).
+ * If the variable is new, it is created.
+ *
+ * @param vm VM instance (must not be NULL).
+ * @param name Variable name (copied internally via strdup, caller retains
+ * ownership).
+ * @param value Value to store (VM takes ownership, increments refcount
+ * internally).
+ * @param is_mutable true for mutable (let), false for immutable (set).
+ * @param type_name Type constraint ("number", "string", "boolean", or NULL for
+ * untyped). Copied internally via strdup if non-NULL, caller retains ownership.
+ * @note On error, calls exit(1) with error message (no graceful recovery).
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
+void vm_set_global(KronosVM *vm, const char *name, KronosValue *value,
+                   bool is_mutable, const char *type_name);
 
-// Function management
+/**
+ * @brief Get a global variable from the VM.
+ *
+ * @param vm VM instance (must not be NULL).
+ * @param name Variable name to look up (must not be NULL).
+ * @return Pointer to the value if found, NULL if not found.
+ * @note Returned value is NOT owned by caller (do not free). It remains in the
+ * VM.
+ * @note To use the value beyond the current scope, call value_retain().
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
+KronosValue *vm_get_global(KronosVM *vm, const char *name);
+
+/**
+ * @brief Set or update a local variable in a call frame.
+ *
+ * Similar to vm_set_global but operates on function-local variables.
+ * Checks mutability and type constraints if the variable already exists.
+ *
+ * @param frame Call frame (must not be NULL).
+ * @param name Variable name (copied internally via strdup, caller retains
+ * ownership).
+ * @param value Value to store (frame takes ownership, increments refcount
+ * internally).
+ * @param is_mutable true for mutable (let), false for immutable (set).
+ * @param type_name Type constraint or NULL (copied internally via strdup if
+ * non-NULL).
+ * @note On error, calls exit(1) with error message (no graceful recovery).
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
+void vm_set_local(CallFrame *frame, const char *name, KronosValue *value,
+                  bool is_mutable, const char *type_name);
+
+/**
+ * @brief Get a local variable from a call frame.
+ *
+ * @param frame Call frame (must not be NULL).
+ * @param name Variable name to look up (must not be NULL).
+ * @return Pointer to the value if found, NULL if not found.
+ * @note Returned value is NOT owned by caller (do not free). It remains in the
+ * frame.
+ * @note To use the value beyond the current scope, call value_retain().
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
+KronosValue *vm_get_local(CallFrame *frame, const char *name);
+
+/**
+ * @brief Get a variable by name, checking local scope first, then global.
+ *
+ * If inside a function call (vm->current_frame != NULL), searches locals first.
+ * Falls back to globals if not found locally.
+ *
+ * @param vm VM instance (must not be NULL).
+ * @param name Variable name to look up (must not be NULL).
+ * @return Pointer to the value if found, NULL if not found in either scope.
+ * @note Returned value is NOT owned by caller (do not free).
+ * @note To use the value beyond the current scope, call value_retain().
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
+KronosValue *vm_get_variable(KronosVM *vm, const char *name);
+
+/**
+ * @brief Define a new function in the VM.
+ *
+ * Registers a function so it can be called by name. If a function with the
+ * same name exists, it is replaced (no error).
+ *
+ * @param vm VM instance (must not be NULL).
+ * @param func Function to register (VM takes ownership, caller must not free).
+ * @note On overflow (too many functions), calls exit(1) with error message.
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
 void vm_define_function(KronosVM *vm, Function *func);
+
+/**
+ * @brief Get a function by name from the VM.
+ *
+ * @param vm VM instance (must not be NULL).
+ * @param name Function name to look up (must not be NULL).
+ * @return Pointer to the Function if found, NULL if not found.
+ * @note Returned function is NOT owned by caller (do not free). It remains in
+ * the VM.
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
 Function *vm_get_function(KronosVM *vm, const char *name);
+
+/**
+ * @brief Free a Function and all associated resources.
+ *
+ * Releases the function's parameter list, bytecode, and the Function structure
+ * itself.
+ *
+ * @param func Function to free (may be NULL, in which case this is a no-op).
+ * @note Called internally by vm_free(). Only call manually if you created the
+ * Function outside the VM and never registered it.
+ * @note Thread-safety: VM is NOT thread-safe. Caller must synchronize access.
+ */
 void function_free(Function *func);
 
 #endif // KRONOS_VM_H
