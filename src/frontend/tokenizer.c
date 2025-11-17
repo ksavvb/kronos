@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "tokenizer.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -44,36 +45,21 @@ static TokenType match_keyword(const char *text, size_t len) {
     const char *keyword;
     TokenType type;
   } keywords[] = {
-      {"set", TOK_SET},
-      {"let", TOK_LET},
-      {"to", TOK_TO},
-      {"as", TOK_AS},
-      {"if", TOK_IF},
-      {"for", TOK_FOR},
-      {"while", TOK_WHILE},
-      {"in", TOK_IN},
-      {"range", TOK_RANGE},
-      {"function", TOK_FUNCTION},
-      {"with", TOK_WITH},
-      {"call", TOK_CALL},
-      {"return", TOK_RETURN},
-      {"true", TOK_TRUE},
-      {"false", TOK_FALSE},
-      {"null", TOK_NULL},
-      {"is", TOK_IS},
-      {"equal", TOK_EQUAL},
-      {"not", TOK_NOT},
-      {"greater", TOK_GREATER},
-      {"less", TOK_LESS},
-      {"than", TOK_THAN},
-      {"and", TOK_AND},
-      {"or", TOK_OR},
-      {"print", TOK_PRINT},
-      {"plus", TOK_PLUS},
-      {"minus", TOK_MINUS},
-      {"times", TOK_TIMES},
-      {"divided", TOK_DIVIDED},
-      {"by", TOK_BY},
+      {"set", TOK_SET},         {"let", TOK_LET},
+      {"to", TOK_TO},           {"as", TOK_AS},
+      {"if", TOK_IF},           {"for", TOK_FOR},
+      {"while", TOK_WHILE},     {"in", TOK_IN},
+      {"range", TOK_RANGE},     {"function", TOK_FUNCTION},
+      {"with", TOK_WITH},       {"call", TOK_CALL},
+      {"return", TOK_RETURN},   {"true", TOK_TRUE},
+      {"false", TOK_FALSE},     {"null", TOK_NULL},
+      {"is", TOK_IS},           {"equal", TOK_EQUAL},
+      {"not", TOK_NOT},         {"greater", TOK_GREATER},
+      {"less", TOK_LESS},       {"than", TOK_THAN},
+      {"and", TOK_AND},         {"or", TOK_OR},
+      {"print", TOK_PRINT},     {"plus", TOK_PLUS},
+      {"minus", TOK_MINUS},     {"times", TOK_TIMES},
+      {"divided", TOK_DIVIDED}, {"by", TOK_BY},
   };
 
   for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
