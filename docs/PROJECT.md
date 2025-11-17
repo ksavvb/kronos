@@ -130,44 +130,119 @@ OP_HALT           # Stop execution
 - Cycle detection preparation
 - ~100 lines of code
 
-## Directory Structure
+## Project Structure
+
+### Root Directory
 
 ```
 kronos/
-├── include/
-│   └── kronos.h              # Public API header
-├── src/
-│   ├── core/                 # Runtime & memory management
-│   │   ├── runtime.c/h       # Value system
-│   │   └── gc.c/h            # Garbage collector
-│   ├── frontend/             # Tokenizer & parser
-│   │   ├── tokenizer.c/h     # Lexical analysis
-│   │   └── parser.c/h        # Syntax analysis
-│   ├── compiler/             # Bytecode compilation
-│   │   └── compiler.c/h      # AST to bytecode
-│   ├── vm/                   # Virtual machine
-│   │   └── vm.c/h            # Bytecode executor
-│   ├── concurrency/          # Future: Goroutines
-│   │   └── scheduler.h       # Placeholder
-│   └── fault/                # Future: Fault tolerance
-│       ├── exceptions.h      # Placeholder
-│       └── supervisor.h      # Placeholder
-├── examples/                 # Example programs
-│   ├── hello.kr
-│   ├── arithmetic.kr
-│   ├── conditionals.kr
-│   ├── loops.kr
-│   ├── fizzbuzz.kr
-│   ├── syntax_showcase.kr
-│   ├── test.kr
-│   └── README.md
-├── archive/                  # Original Python implementation
-├── main.c                    # Entry point & REPL
-├── Makefile                  # Build system
-├── README.md                 # Project readme
-├── SYNTAX.md                 # Complete syntax guide
-├── QUICKREF.md              # Quick reference
-└── PROJECT.md               # This file
+├── README.md                    # Main project documentation
+├── LICENSE                      # MIT License
+├── Makefile                     # Build system
+├── .gitignore                   # Git exclusions
+│
+├── install_extension.sh         # Install VSCode extension
+├── test_lsp_manually.sh         # Test LSP server manually
+├── language-configuration.json  # Editor behavior rules
+│
+├── main.c                       # Entry point
+├── kronos                       # Compiled binary (gitignored)
+├── kronos-lsp                   # LSP server binary (gitignored)
+│
+├── include/                     # Public headers
+├── src/                         # Source code
+├── docs/                        # All documentation
+├── examples/                    # Example .kr programs
+└── vscode-extension/            # VSCode extension source
+```
+
+### Source Structure (`src/`)
+
+```
+src/
+├── core/                        # Runtime & memory management
+│   ├── runtime.c/h             # Value system, types
+│   └── gc.c/h                  # Garbage collector
+│
+├── frontend/                    # Lexing & parsing
+│   ├── tokenizer.c/h           # Lexical analysis
+│   └── parser.c/h              # Syntax analysis (AST)
+│
+├── compiler/                    # Code generation
+│   └── compiler.c/h            # AST → Bytecode
+│
+├── vm/                          # Execution
+│   └── vm.c/h                  # Stack-based VM
+│
+└── lsp/                         # Language Server Protocol
+    └── lsp_server.c            # LSP implementation
+```
+
+### Documentation Structure (`docs/`)
+
+```
+docs/
+├── README.md                    # Documentation index
+├── PROJECT.md                   # This file (architecture & internals)
+├── SYNTAX.md                    # Language syntax reference
+├── QUICKREF.md                  # Quick reference card
+├── IMPLEMENTATION_STATUS.md     # Feature status & roadmap
+├── EDITOR_SETUP.md              # Multi-editor setup guide
+├── LSP_SETUP.md                 # Complete LSP guide
+└── PACKAGING.md                 # Extension packaging
+```
+
+### VSCode Extension (`vscode-extension/`)
+
+```
+vscode-extension/
+├── package.json                 # Extension manifest
+├── extension.js                 # LSP client code
+├── README.md                    # Extension docs
+├── .vscodeignore               # Packaging exclusions
+├── .npmrc                       # npm config
+├── language-configuration.json  # Editor behavior
+├── syntaxes/                    # Syntax highlighting
+│   └── kronos.tmLanguage.json
+└── node_modules/                # npm dependencies (gitignored)
+```
+
+### Examples (`examples/`)
+
+```
+examples/
+├── README.md                    # Examples guide
+├── hello.kr                     # Hello world
+├── test.kr                      # Variables & arithmetic
+├── arithmetic.kr                # All arithmetic operations
+├── conditionals.kr              # If statements
+├── loops.kr                     # For & while loops
+├── fizzbuzz.kr                  # FizzBuzz implementation
+├── syntax_showcase.kr           # Feature showcase
+├── functions_simple.kr          # Simple functions
+├── functions.kr                 # Comprehensive functions
+├── builtins.kr                  # Built-in constants & functions
+├── variables.kr                 # Mutable/immutable variables
+└── pi_constant.kr               # Pi constant usage
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `main.c` | CLI entry point (file execution & REPL) |
+| `Makefile` | Build system with targets: `all`, `lsp`, `clean`, `install` |
+| `install_extension.sh` | One-command LSP installation |
+| `language-configuration.json` | Editor behavior (brackets, indentation) |
+
+### Build Artifacts (Gitignored)
+
+```
+*.o                              # Object files
+kronos                           # Main binary
+kronos-lsp                       # LSP server binary
+*.dSYM/                          # Debug symbols (macOS)
+vscode-extension/node_modules/   # npm dependencies
 ```
 
 ## Build System
