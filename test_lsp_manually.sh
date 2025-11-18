@@ -1,12 +1,16 @@
 #!/bin/bash
 # Manually test the Kronos LSP server
 
+# Exit on error
+set -e
+
 echo "🧪 Testing Kronos LSP Server Manually"
 echo ""
 
 if [ ! -f "./kronos-lsp" ]; then
     echo "Building LSP server first..."
     make lsp
+    echo "✓ Build successful"
     echo ""
 fi
 
