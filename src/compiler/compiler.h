@@ -49,18 +49,21 @@ typedef struct {
  * the Kronos VM.
  *
  * Error handling:
- * - Returns NULL if ast is NULL (invalid input).
- * - Returns NULL if memory allocation fails during compilation.
- * - On internal errors (e.g., buffer growth failures), calls exit(1) with
- *   an error message (does not return gracefully).
+ * - Returns NULL for all failure modes (invalid AST, allocation failures,
+ *   or internal compiler errors such as buffer growth failures).
+ * - When @p out_err is non-NULL, it is set to a static, human-readable
+ *   error string on failure; the pointer remains valid for the lifetime
+ *   of the process and must not be freed. On success, *out_err is set to NULL.
  *
  * @param ast Abstract syntax tree to compile (may be NULL).
+ * @param out_err Optional location to store an error message on failure
+ * (owned by the compiler; caller must not free). Ignored when NULL.
  * @return Pointer to newly allocated Bytecode on success, NULL on error.
  * @note Caller must call bytecode_free() on the returned bytecode when done.
  * @note The AST is not modified and remains owned by the caller.
  * @note Thread-safety: NOT thread-safe. Do not compile concurrently.
  */
-Bytecode *compile(AST *ast);
+Bytecode *compile(AST *ast, const char **out_err);
 
 /**
  * @brief Free a Bytecode structure and all associated resources.
@@ -81,7 +84,8 @@ void bytecode_free(Bytecode *bytecode);
  * Disassembles the bytecode instruction-by-instruction and prints to stdout.
  * Shows opcode names, operands, and references to the constant pool.
  *
- * @param bytecode Bytecode to print (may be NULL; prints "Bytecode: NULL" if so).
+ * @param bytecode Bytecode to print (may be NULL; prints "Bytecode: NULL" if
+ * so).
  * @note This is a debugging/development tool, not for production use.
  * @note Output format is subject to change.
  */
