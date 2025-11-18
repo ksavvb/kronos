@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const path = require('path');
+const fs = require('fs');
 const { LanguageClient, TransportKind } = require('vscode-languageclient/node');
 
 let client;
@@ -21,8 +22,16 @@ function activate(context) {
     return;
   }
 
-  // Path to the LSP server binary
-  const serverPath = path.join(workspaceFolder.uri.fsPath, 'kronos-lsp');
+  // Path to the LSP server binary (add .exe on Windows)
+  const binaryName = process.platform === 'win32' ? 'kronos-lsp.exe' : 'kronos-lsp';
+  const serverPath = path.join(workspaceFolder.uri.fsPath, binaryName);
+
+  if (!fs.existsSync(serverPath)) {
+    const message = `Kronos LSP binary not found at ${serverPath}. Run "make lsp" first.`;
+    console.error(message);
+    vscode.window.showErrorMessage(message);
+    return;
+  }
 
   const serverOptions = {
     command: serverPath,
