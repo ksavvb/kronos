@@ -36,7 +36,8 @@ void gc_cleanup(void);
  * - Only called once per object lifetime
  *
  * Behavior:
- * - Idempotent: Safe to call multiple times (no-op if already tracked)
+ * - NOT idempotent: must be called exactly once per object lifetime
+ * - Calling twice on the same object results in undefined behavior
  * - NULL-safe: Passing NULL is a no-op
  * - Updates memory statistics (allocated bytes count)
  * - Adds object to cycle detection tracking list
@@ -49,7 +50,8 @@ void gc_cleanup(void);
  *   gc_track(val);  // Track immediately after initialization
  *
  * @param val Value to track (may be NULL, in which case this is a no-op).
- * @note Does not modify refcount - tracking is separate from reference counting.
+ * @note Does not modify refcount - tracking is separate from reference
+ * counting.
  * @note Thread-safety: NOT thread-safe. Requires external synchronization.
  */
 void gc_track(KronosValue *val);
@@ -61,13 +63,15 @@ void gc_track(KronosValue *val);
  * - Only during object destruction (when refcount reaches 0)
  * - Called by value_release() before freeing the object
  * - Must be called before the object is freed to update statistics
- *
- * Behavior:
  * - Safe to call on untracked objects (no-op if not found)
  * - NULL-safe: Passing NULL is a no-op
  * - Updates memory statistics (subtracts allocated bytes)
  * - Removes object from cycle detection tracking list
- * - Call must be balanced with gc_track (one untrack per track)
+ * - Call must be balanced with gc_track (one untrack per object, regardless of
+ * gc_track calls)
+ * - Updates memory statistics (subtracts allocated bytes)
+ * - Removes object from cycle detection tracking list
+ * - Calls must be balanced with gc_track (one untrack per track)
  *
  * Example usage:
  *   void value_release(KronosValue *val) {
@@ -87,11 +91,12 @@ void gc_untrack(KronosValue *val);
 /**
  * @brief Run cycle detection to free unreachable circular references.
  *
- * Performs mark-and-sweep garbage collection to detect and break reference cycles
- * that would otherwise leak memory. Should be called periodically or when memory
- * pressure is detected.
+ * Performs mark-and-sweep garbage collection to detect and break reference
+ * cycles that would otherwise leak memory. Should be called periodically or
+ * when memory pressure is detected.
  *
- * @note Currently not fully implemented - reference counting handles most cases.
+ * @note Currently not fully implemented - reference counting handles most
+ * cases.
  * @note Thread-safety: NOT thread-safe. Requires external synchronization.
  */
 void gc_collect_cycles(void);
@@ -100,7 +105,8 @@ void gc_collect_cycles(void);
  * @brief Get total bytes allocated by tracked objects.
  *
  * @return Total bytes of memory used by all tracked KronosValue objects.
- * @note Includes object headers and any associated data (e.g., string contents).
+ * @note Includes object headers and any associated data (e.g., string
+ * contents).
  * @note Thread-safety: NOT thread-safe. Requires external synchronization.
  */
 size_t gc_get_allocated_bytes(void);
