@@ -698,7 +698,7 @@ void bytecode_print(Bytecode *bytecode) {
   printf("Constants (%zu):\n", bytecode->const_count);
   for (size_t i = 0; i < bytecode->const_count; i++) {
     printf("  [%zu] ", i);
-    value_print(bytecode->constants[i]);
+    value_fprint(stdout, bytecode->constants[i]);
     printf("\n");
   }
 
@@ -810,6 +810,10 @@ void bytecode_print(Bytecode *bytecode) {
     }
     case OP_RETURN_VAL:
       printf("RETURN_VAL\n");
+      offset++;
+      break;
+    case OP_POP:
+      printf("POP\n");
       offset++;
       break;
     case OP_HALT:
