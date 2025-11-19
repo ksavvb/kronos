@@ -885,7 +885,16 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
 
     case OP_JUMP: {
       int8_t offset = (int8_t)read_byte(vm);
-      vm->ip += offset;
+      uint8_t *new_ip = vm->ip + offset;
+      // Bounds check: ensure jump target is within valid bytecode range
+      if (new_ip < vm->bytecode->code ||
+          new_ip >= vm->bytecode->code + vm->bytecode->count) {
+        return vm_errorf(
+            vm, KRONOS_ERR_RUNTIME,
+            "Jump target out of bounds (offset: %d, bytecode size: %zu)",
+            offset, vm->bytecode->count);
+      }
+      vm->ip = new_ip;
       break;
     }
 
@@ -893,7 +902,21 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       uint8_t offset = read_byte(vm);
       KronosValue *condition = peek(vm, 0);
       if (!value_is_truthy(condition)) {
-        vm->ip += offset;
+        uint8_t *new_ip = vm->ip + offset;
+        // Bounds check: ensure jump target is within valid bytecode range
+        if (new_ip < vm->bytecode->code ||
+            new_ip >= vm->bytecode->code + vm->bytecode->count) {
+          // Pop condition before returning error
+          KronosValue *condition_val = pop(vm);
+          if (condition_val) {
+            value_release(condition_val);
+          }
+          return vm_errorf(
+              vm, KRONOS_ERR_RUNTIME,
+              "Jump target out of bounds (offset: %u, bytecode size: %zu)",
+              offset, vm->bytecode->count);
+        }
+        vm->ip = new_ip;
       }
       KronosValue *condition_val = pop(vm);
       if (!condition_val) {
@@ -1009,7 +1032,26 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Calculate body end (before the jump we just read)
       uint8_t *body_end_ptr = vm->ip + skip_offset;
 
+      // Validate that body_end_ptr is within valid bytecode bounds
+      if (body_end_ptr < vm->bytecode->code ||
+          body_end_ptr > vm->bytecode->code + vm->bytecode->count) {
+        function_free(func);
+        return vm_errorf(vm, KRONOS_ERR_RUNTIME,
+                         "Function body extends beyond bytecode bounds "
+                         "(offset: %u, bytecode size: %zu)",
+                         skip_offset, vm->bytecode->count);
+      }
+
       // Copy function body bytecode
+      // Validate that body_end_ptr >= vm->ip to prevent wrap-around
+      if (body_end_ptr < vm->ip) {
+        function_free(func);
+        return vm_errorf(
+            vm, KRONOS_ERR_RUNTIME,
+            "Invalid function body: backward jump detected (offset: %u)",
+            skip_offset);
+      }
+
       size_t bytecode_size = body_end_ptr - vm->ip;
       func->bytecode.code = malloc(bytecode_size);
       if (!func->bytecode.code) {
