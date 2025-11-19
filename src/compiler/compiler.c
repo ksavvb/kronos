@@ -584,9 +584,16 @@ static void compile_statement(Compiler *c, ASTNode *node) {
     if (compiler_has_error(c))
       return;
 
-    // Pop return value (function calls as statements don't use the return
-    // value)
-    emit_byte(c, OP_POP);
+    // For built-in functions, print the result instead of discarding it
+    // For user-defined functions, pop the return value (function calls as
+    // statements don't use the return value)
+    const char *func_name_str = node->as.call.name;
+    if (strcmp(func_name_str, "add") == 0 || strcmp(func_name_str, "subtract") == 0 ||
+        strcmp(func_name_str, "multiply") == 0 || strcmp(func_name_str, "divide") == 0) {
+      emit_byte(c, OP_PRINT);
+    } else {
+      emit_byte(c, OP_POP);
+    }
     if (compiler_has_error(c))
       return;
     break;
