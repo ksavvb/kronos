@@ -854,24 +854,9 @@ print max
 
 ---
 
-## Future Features (Version 0.2.0)
+## Future Features (Version 0.3.0)
 
 The following features are planned for the next release:
-
-### Functions
-
-**Status:** Planned for v0.2.0 (parser complete, VM needs refactoring)
-
-```kronos
-function greet with name:
-    print "Hello"
-    print name
-    return name
-
-call greet with "Alice"
-```
-
-**Note:** Functions are being designed with proper stack frames and local variable scoping for maximum correctness and performance.
 
 ### Else Statements
 
