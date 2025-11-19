@@ -105,21 +105,16 @@ static ASTNode *parse_value(Parser *p) {
 
   if (tok->type == TOK_STRING) {
     consume_any(p);
-    // Validate string has at least opening and closing quotes
-    if (tok->length < 2) {
-      fprintf(stderr, "Invalid string token: length < 2\n");
-      return NULL;
-    }
+    // Tokenizer already strips quotes, so tok->text contains only the content
     ASTNode *node = ast_node_new_checked(AST_STRING);
-    // Remove quotes from string
-    size_t len = tok->length - 2;
+    size_t len = tok->length;
     node->as.string.value = malloc(len + 1);
     if (!node->as.string.value) {
       fprintf(stderr, "Memory allocation failed for string value\n");
       free(node);
       return NULL;
     }
-    strncpy(node->as.string.value, tok->text + 1, len);
+    strncpy(node->as.string.value, tok->text, len);
     node->as.string.value[len] = '\0';
     node->as.string.length = len;
     return node;
@@ -156,45 +151,6 @@ static int get_precedence(TokenType type) {
   }
 }
 
-// Parse a binary operator and consume it, returning the BinOp and precedence
-// Returns true if an operator was found, false otherwise
-static bool parse_binary_op(Parser *p, BinOp *op, int *prec) {
-  Token *tok = peek(p, 0);
-  if (!tok)
-    return false;
-
-  switch (tok->type) {
-  case TOK_PLUS:
-    *op = BINOP_ADD;
-    *prec = get_precedence(TOK_PLUS);
-    consume_any(p);
-    return true;
-  case TOK_MINUS:
-    *op = BINOP_SUB;
-    *prec = get_precedence(TOK_MINUS);
-    consume_any(p);
-    return true;
-  case TOK_TIMES:
-    *op = BINOP_MUL;
-    *prec = get_precedence(TOK_TIMES);
-    consume_any(p);
-    return true;
-  case TOK_DIVIDED: {
-    Token *next = peek(p, 1);
-    if (!next || next->type != TOK_BY) {
-      return false;
-    }
-    consume_any(p); // consume DIVIDED
-    consume_any(p); // consume BY
-    *op = BINOP_DIV;
-    *prec = get_precedence(TOK_DIVIDED);
-    return true;
-  }
-  default:
-    return false;
-  }
-}
-
 // Parse expression with precedence-climbing (Pratt parser)
 static ASTNode *parse_expression_prec(Parser *p, int min_prec) {
   // Parse left operand
@@ -204,10 +160,56 @@ static ASTNode *parse_expression_prec(Parser *p, int min_prec) {
 
   // While there's an operator with precedence >= min_prec
   while (1) {
-    BinOp op;
-    int prec;
-    if (!parse_binary_op(p, &op, &prec) || prec < min_prec) {
+    // Peek at the next token to check if it's a binary operator
+    Token *tok = peek(p, 0);
+    if (!tok)
       break;
+
+    // Check if it's a binary operator and get its precedence
+    int prec = 0;
+    BinOp op;
+    bool is_binary_op = false;
+
+    switch (tok->type) {
+    case TOK_PLUS:
+      prec = get_precedence(TOK_PLUS);
+      op = BINOP_ADD;
+      is_binary_op = true;
+      break;
+    case TOK_MINUS:
+      prec = get_precedence(TOK_MINUS);
+      op = BINOP_SUB;
+      is_binary_op = true;
+      break;
+    case TOK_TIMES:
+      prec = get_precedence(TOK_TIMES);
+      op = BINOP_MUL;
+      is_binary_op = true;
+      break;
+    case TOK_DIVIDED: {
+      Token *next = peek(p, 1);
+      if (next && next->type == TOK_BY) {
+        prec = get_precedence(TOK_DIVIDED);
+        op = BINOP_DIV;
+        is_binary_op = true;
+      }
+      break;
+    }
+    default:
+      break;
+    }
+
+    // If not a binary operator or precedence too low, stop
+    if (!is_binary_op || prec < min_prec) {
+      break;
+    }
+
+    // Now consume the operator(s)
+    if (tok->type == TOK_DIVIDED) {
+      consume_any(p); // consume DIVIDED
+      consume_any(p); // consume BY
+    } else {
+      consume_any(p); // consume the operator
     }
 
     // Parse right operand with precedence + 1 (for left-associativity)
