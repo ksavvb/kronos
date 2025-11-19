@@ -20,10 +20,200 @@
 
 #include "../frontend/parser.h"
 #include "../frontend/tokenizer.h"
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+
+// Helper utilities for naive JSON parsing (sufficient for stub LSP server)
+static const char *skip_ws(const char *s) {
+  while (s && *s && isspace((unsigned char)*s)) {
+    s++;
+  }
+  return s;
+}
+
+static const char *find_value_start(const char *json, const char *key) {
+  if (!json || !key)
+    return NULL;
+
+  char pattern[128];
+  int written = snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+  if (written <= 0 || (size_t)written >= sizeof(pattern))
+    return NULL;
+
+  const char *pos = json;
+  size_t pattern_len = (size_t)written;
+  while ((pos = strstr(pos, pattern)) != NULL) {
+    pos += pattern_len;
+    pos = skip_ws(pos);
+    if (*pos != ':')
+      continue;
+    pos++;
+    return skip_ws(pos);
+  }
+  return NULL;
+}
+
+static char *json_get_string_value(const char *json, const char *key) {
+  const char *value_start = find_value_start(json, key);
+  if (!value_start || *value_start != '"')
+    return NULL;
+
+  value_start++; // skip opening quote
+  const char *cursor = value_start;
+  while (*cursor) {
+    if (*cursor == '"') {
+      const char *back = cursor - 1;
+      bool escaped = false;
+      while (back >= value_start && *back == '\\') {
+        escaped = !escaped;
+        back--;
+      }
+      if (!escaped)
+        break;
+    }
+    cursor++;
+  }
+  if (*cursor != '"')
+    return NULL;
+
+  size_t raw_len = (size_t)(cursor - value_start);
+  char *result = malloc(raw_len + 1);
+  if (!result)
+    return NULL;
+
+  size_t out_idx = 0;
+  for (const char *iter = value_start; iter < cursor; ++iter) {
+    if (*iter == '\\' && (iter + 1) < cursor) {
+      ++iter;
+      switch (*iter) {
+      case '"':
+        result[out_idx++] = '"';
+        break;
+      case '\\':
+        result[out_idx++] = '\\';
+        break;
+      case '/':
+        result[out_idx++] = '/';
+        break;
+      case 'b':
+        result[out_idx++] = '\b';
+        break;
+      case 'f':
+        result[out_idx++] = '\f';
+        break;
+      case 'n':
+        result[out_idx++] = '\n';
+        break;
+      case 'r':
+        result[out_idx++] = '\r';
+        break;
+      case 't':
+        result[out_idx++] = '\t';
+        break;
+      default:
+        result[out_idx++] = *iter;
+        break;
+      }
+    } else {
+      result[out_idx++] = *iter;
+    }
+  }
+  result[out_idx] = '\0';
+  return result;
+}
+
+static char *json_get_unquoted_value(const char *json, const char *key) {
+  const char *value_start = find_value_start(json, key);
+  if (!value_start || *value_start == '"' || *value_start == '\0')
+    return NULL;
+
+  const char *cursor = value_start;
+  while (*cursor && !isspace((unsigned char)*cursor) && *cursor != ',' &&
+         *cursor != '}' && *cursor != ']') {
+    cursor++;
+  }
+
+  size_t len = (size_t)(cursor - value_start);
+  if (len == 0)
+    return NULL;
+
+  char *result = malloc(len + 1);
+  if (!result)
+    return NULL;
+  memcpy(result, value_start, len);
+  result[len] = '\0';
+  return result;
+}
+
+static char *json_get_id_value(const char *json) {
+  char *string_id = json_get_string_value(json, "id");
+  if (string_id) {
+    size_t len = strlen(string_id);
+    char *wrapped = malloc(len + 3);
+    if (!wrapped) {
+      free(string_id);
+      return NULL;
+    }
+    wrapped[0] = '"';
+    memcpy(wrapped + 1, string_id, len);
+    wrapped[len + 1] = '"';
+    wrapped[len + 2] = '\0';
+    free(string_id);
+    return wrapped;
+  }
+  return json_get_unquoted_value(json, "id");
+}
+
+static bool read_lsp_message(char **out_body, size_t *out_length) {
+  if (!out_body || !out_length)
+    return false;
+
+  char header_line[1024];
+  size_t content_length = 0;
+  bool have_length = false;
+
+  while (fgets(header_line, sizeof(header_line), stdin)) {
+    if (header_line[0] == '\r' || header_line[0] == '\n') {
+      break;
+    }
+
+    if (strncasecmp(header_line, "Content-Length:", 15) == 0) {
+      content_length = (size_t)strtoul(header_line + 15, NULL, 10);
+      have_length = true;
+    }
+  }
+
+  if (!have_length) {
+    return false;
+  }
+
+  char *body = malloc(content_length + 1);
+  if (!body) {
+    fprintf(stderr, "LSP server: failed to allocate %zu-byte body buffer\n",
+            content_length);
+    return false;
+  }
+
+  size_t read_total = 0;
+  while (read_total < content_length) {
+    size_t bytes_read =
+        fread(body + read_total, 1, content_length - read_total, stdin);
+    if (bytes_read == 0) {
+      free(body);
+      return false;
+    }
+    read_total += bytes_read;
+  }
+
+  body[content_length] = '\0';
+  *out_body = body;
+  *out_length = content_length;
+  return true;
+}
 
 // JSON-escape a string (escape backslashes, quotes, and control characters)
 static void json_escape(const char *input, char *output, size_t output_size) {
@@ -173,7 +363,7 @@ static void check_diagnostics(const char *uri, const char *text) {
     char diagnostics[4096];
     size_t pos = 0;
     size_t remaining = sizeof(diagnostics);
-    
+
     int written = snprintf(diagnostics + pos, remaining,
                            "{\"uri\":\"%s\",\"diagnostics\":["
                            "{\"range\":{\"start\":{\"line\":0,\"character\":0},"
@@ -258,7 +448,7 @@ static void handle_initialize(const char *id) {
       "{"
       "\"capabilities\":{"
       "\"textDocumentSync\":1,"
-      "\"completionProvider\":{\"triggerCharacters\":[\" \"]}"
+      "\"completionProvider\":{\"triggerCharacters\":[\".\",\":\"]}"
       "}"
       "}";
   send_response(id, capabilities);
@@ -296,33 +486,66 @@ static void handle_completion(const char *id) {
 
 // Main LSP loop
 int main(void) {
-  char buffer[8192];
+  fprintf(stderr, "Kronos LSP Server starting...\\n");
 
-  fprintf(stderr, "Kronos LSP Server starting...\n");
+  char *body = NULL;
+  size_t body_len = 0;
 
-  while (fgets(buffer, sizeof(buffer), stdin)) {
-    // NOTE: This is a STUB implementation using strstr() for quick prototyping.
-    // Production LSP requires proper JSON-RPC parsing to extract:
-    // - Request IDs from each message
-    // - textDocument.uri and text from didOpen/didChange
-    // - Position info from completion requests
-    // TODO: Implement proper JSON parser or use library (e.g., cJSON)
-    if (strstr(buffer, "initialize")) {
-      handle_initialize("1");
-    } else if (strstr(buffer, "shutdown")) {
-      handle_shutdown("2");
-      break;
-    } else if (strstr(buffer, "textDocument/didOpen")) {
-      // STUB: Uses hardcoded URI/text instead of parsing from request
-      handle_did_open("file:///test.kr", "set x to 10");
-    } else if (strstr(buffer, "textDocument/didChange")) {
-      // STUB: Uses hardcoded URI/text instead of parsing from request
-      handle_did_change("file:///test.kr", "set x to 10");
-    } else if (strstr(buffer, "textDocument/completion")) {
-      // STUB: Uses hardcoded ID instead of parsing from request
-      handle_completion("3");
+  while (read_lsp_message(&body, &body_len)) {
+    if (!body)
+      continue;
+
+    char *method = json_get_string_value(body, "method");
+    if (!method) {
+      free(body);
+      body = NULL;
+      continue;
     }
+
+    if (strcmp(method, "initialize") == 0) {
+      char *id = json_get_id_value(body);
+      handle_initialize(id ? id : "null");
+      free(id);
+    } else if (strcmp(method, "shutdown") == 0) {
+      char *id = json_get_id_value(body);
+      handle_shutdown(id ? id : "null");
+      free(id);
+      free(method);
+      free(body);
+      break;
+    } else if (strcmp(method, "textDocument/didOpen") == 0) {
+      char *uri = json_get_string_value(body, "uri");
+      char *text = json_get_string_value(body, "text");
+      if (uri && text) {
+        handle_did_open(uri, text);
+      } else {
+        fprintf(stderr, "LSP didOpen missing uri/text\\n");
+      }
+      free(uri);
+      free(text);
+    } else if (strcmp(method, "textDocument/didChange") == 0) {
+      char *uri = json_get_string_value(body, "uri");
+      char *text = json_get_string_value(body, "text");
+      if (uri && text) {
+        handle_did_change(uri, text);
+      } else {
+        fprintf(stderr, "LSP didChange missing uri/text\\n");
+      }
+      free(uri);
+      free(text);
+    } else if (strcmp(method, "textDocument/completion") == 0) {
+      char *id = json_get_id_value(body);
+      handle_completion(id ? id : "null");
+      free(id);
+    } else {
+      fprintf(stderr, "Unsupported LSP method: %s\\n", method);
+    }
+
+    free(method);
+    free(body);
+    body = NULL;
   }
 
+  free(body);
   return 0;
 }
