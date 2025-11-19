@@ -20,7 +20,6 @@ typedef enum {
   AST_NULL,
   AST_VAR,
   AST_BINOP,
-  AST_CONDITION,
 } ASTNodeType;
 
 typedef struct ASTNode ASTNode;
@@ -65,19 +64,12 @@ struct ASTNode {
       ASTNode *value;
     } print;
 
-    // Binary operation
+    // Binary operation (arithmetic and comparison)
     struct {
       ASTNode *left;
       BinOp op;
       ASTNode *right;
     } binop;
-
-    // Condition
-    struct {
-      ASTNode *left;
-      BinOp op;
-      ASTNode *right;
-    } condition;
 
     // Control flow
     struct {
