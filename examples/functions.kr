@@ -41,7 +41,7 @@ call showWelcome with "Kronos Programming!"
 print ""
 
 print "5. Testing built-in Pi constant:"
-print "Pi to 100 decimals:"
+print "Pi constant (double-precision):"
 print Pi
 print ""
 
