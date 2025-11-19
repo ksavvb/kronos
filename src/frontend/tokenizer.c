@@ -1,17 +1,23 @@
 #define _POSIX_C_SOURCE 200809L
 #include "tokenizer.h"
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+// Tabs count as this many spaces when computing indentation
+#define TOKENIZER_TAB_WIDTH 8
+
 // Token type to string (for debugging)
+// Must match TokenType enum order exactly
 static const char *token_type_names[] = {
-    "NUMBER", "STRING", "SET",      "TO",     "IF",      "FOR",    "WHILE",
-    "IN",     "RANGE",  "FUNCTION", "WITH",   "CALL",    "RETURN", "IS",
-    "EQUAL",  "NOT",    "GREATER",  "LESS",   "THAN",    "AND",    "OR",
-    "PRINT",  "PLUS",   "MINUS",    "TIMES",  "DIVIDED", "BY",     "NAME",
-    "COLON",  "COMMA",  "NEWLINE",  "INDENT", "EOF"};
+    "NUMBER",  "STRING", "SET",     "LET",   "TO",       "AS",    "IF",
+    "FOR",     "WHILE",  "IN",      "RANGE", "FUNCTION", "WITH",  "CALL",
+    "RETURN",  "TRUE",   "FALSE",   "NULL",  "IS",       "EQUAL", "NOT",
+    "GREATER", "LESS",   "THAN",    "AND",   "OR",       "PRINT", "PLUS",
+    "MINUS",   "TIMES",  "DIVIDED", "BY",    "NAME",     "COLON", "COMMA",
+    "NEWLINE", "INDENT", "EOF"};
 
 // Helper to create token array
 static TokenArray *token_array_new(void) {
@@ -32,9 +38,20 @@ static TokenArray *token_array_new(void) {
 
 // Helper to add token
 static void token_array_add(TokenArray *arr, Token token) {
+  if (!arr)
+    return;
+
   if (arr->count >= arr->capacity) {
-    arr->capacity *= 2;
-    arr->tokens = realloc(arr->tokens, sizeof(Token) * arr->capacity);
+    size_t new_capacity = arr->capacity ? arr->capacity * 2 : 1;
+    Token *new_tokens = realloc(arr->tokens, sizeof(Token) * new_capacity);
+    if (!new_tokens) {
+      fprintf(stderr, "Fatal: tokenizer failed to grow token array\n");
+      if (token.text)
+        free((void *)token.text);
+      exit(EXIT_FAILURE);
+    }
+    arr->tokens = new_tokens;
+    arr->capacity = new_capacity;
   }
   arr->tokens[arr->count++] = token;
 }
@@ -95,31 +112,67 @@ static void tokenize_line(TokenArray *arr, const char *line, int indent) {
     // Numbers
     if (isdigit(line[col])) {
       size_t start = col;
-      while (col < len && (isdigit(line[col]) || line[col] == '.')) {
+      while (col < len && isdigit(line[col])) {
         col++;
       }
+      if (col < len && line[col] == '.' && (col + 1 < len) &&
+          isdigit(line[col + 1])) {
+        col++; // consume '.'
+        while (col < len && isdigit(line[col])) {
+          col++;
+        }
+      }
       Token tok = {TOK_NUMBER, NULL, col - start, 0};
-      tok.text = malloc(tok.length + 1);
-      strncpy(tok.text, line + start, tok.length);
-      tok.text[tok.length] = '\0';
+      char *text_buf = malloc(tok.length + 1);
+      if (!text_buf) {
+        fprintf(stderr, "Failed to allocate memory for number literal\n");
+        return;
+      }
+      memcpy(text_buf, line + start, tok.length);
+      text_buf[tok.length] = '\0';
+      tok.text = text_buf;
       token_array_add(arr, tok);
       continue;
     }
 
-    // Strings
+    // Strings with escape handling
     if (line[col] == '"') {
-      size_t start = col;
-      col++; // Skip opening quote
-      while (col < len && line[col] != '"') {
-        col++;
+      size_t content_start = col + 1;
+      size_t cursor = content_start;
+      bool closed = false;
+      while (cursor < len) {
+        if (line[cursor] == '\\') {
+          cursor++;
+          if (cursor < len) {
+            cursor++;
+          } else {
+            break;
+          }
+        } else if (line[cursor] == '"') {
+          closed = true;
+          break;
+        } else {
+          cursor++;
+        }
       }
-      if (col < len)
-        col++; // Skip closing quote
-      Token tok = {TOK_STRING, NULL, col - start, 0};
-      tok.text = malloc(tok.length + 1);
-      strncpy(tok.text, line + start, tok.length);
-      tok.text[tok.length] = '\0';
+
+      if (!closed) {
+        fprintf(stderr, "Unterminated string literal\n");
+        break;
+      }
+
+      size_t content_len = cursor - content_start;
+      Token tok = {TOK_STRING, NULL, content_len, 0};
+      char *text_buf = malloc(content_len + 1);
+      if (!text_buf) {
+        fprintf(stderr, "Failed to allocate memory for string literal\n");
+        return;
+      }
+      memcpy(text_buf, line + content_start, content_len);
+      text_buf[content_len] = '\0';
+      tok.text = text_buf;
       token_array_add(arr, tok);
+      col = cursor + 1; // Skip closing quote
       continue;
     }
 
@@ -132,23 +185,26 @@ static void tokenize_line(TokenArray *arr, const char *line, int indent) {
       size_t word_len = col - start;
       TokenType type = match_keyword(line + start, word_len);
       Token tok = {type, NULL, word_len, 0};
-      tok.text = malloc(tok.length + 1);
-      strncpy(tok.text, line + start, tok.length);
-      tok.text[tok.length] = '\0';
+      char *text_buf = malloc(tok.length + 1);
+      strncpy(text_buf, line + start, tok.length);
+      text_buf[tok.length] = '\0';
+      tok.text = text_buf;
       token_array_add(arr, tok);
       continue;
     }
 
     // Single character tokens
     if (line[col] == ':') {
-      Token tok = {TOK_COLON, strdup(":"), 1, 0};
+      Token tok = {TOK_COLON, NULL, 1, 0};
+      tok.text = strdup(":");
       token_array_add(arr, tok);
       col++;
       continue;
     }
 
     if (line[col] == ',') {
-      Token tok = {TOK_COMMA, strdup(","), 1, 0};
+      Token tok = {TOK_COMMA, NULL, 1, 0};
+      tok.text = strdup(",");
       token_array_add(arr, tok);
       col++;
       continue;
@@ -160,20 +216,82 @@ static void tokenize_line(TokenArray *arr, const char *line, int indent) {
 
   // Add newline token if line had content
   if (len > 0) {
-    Token tok = {TOK_NEWLINE, strdup("\n"), 1, 0};
+    char *newline_text = strdup("\n");
+    if (!newline_text) {
+      fprintf(stderr, "Failed to allocate newline token text\n");
+      return;
+    }
+    Token tok = {TOK_NEWLINE, newline_text, 1, 0};
     token_array_add(arr, tok);
   }
 }
 
+// Free a TokenizeError structure
+void tokenize_error_free(TokenizeError *err) {
+  if (!err)
+    return;
+  free(err->message);
+  free(err);
+}
+
+// Helper to set tokenize error info
+static void tokenizer_report_error(TokenizeError **out_err, const char *message,
+                                   size_t line, size_t column) {
+  if (!out_err || *out_err)
+    return;
+
+  TokenizeError *err = malloc(sizeof(TokenizeError));
+  if (!err)
+    return;
+
+  err->message = strdup(message ? message : "Tokenizer error");
+  if (!err->message) {
+    free(err);
+    return;
+  }
+  err->line = line;
+  err->column = column;
+  *out_err = err;
+}
+
 // Tokenize source code
-TokenArray *tokenize(const char *source) {
-  TokenArray *arr = token_array_new();
-  if (!arr)
+TokenArray *tokenize(const char *source, TokenizeError **out_err) {
+  // Initialize error output
+  if (out_err)
+    *out_err = NULL;
+
+  // Validate input
+  if (!source) {
+    if (out_err) {
+      TokenizeError *err = malloc(sizeof(TokenizeError));
+      if (err) {
+        err->message = strdup("Source code must not be NULL");
+        err->line = 0;
+        err->column = 0;
+        *out_err = err;
+      }
+    }
     return NULL;
+  }
+
+  TokenArray *arr = token_array_new();
+  if (!arr) {
+    if (out_err) {
+      TokenizeError *err = malloc(sizeof(TokenizeError));
+      if (err) {
+        err->message = strdup("Failed to allocate TokenArray");
+        err->line = 0;
+        err->column = 0;
+        *out_err = err;
+      }
+    }
+    return NULL;
+  }
 
   // Split source into lines
   const char *line_start = source;
   const char *line_end;
+  size_t line_number = 1;
 
   while (*line_start) {
     // Find end of line
@@ -185,19 +303,50 @@ TokenArray *tokenize(const char *source) {
     // Calculate line length
     size_t line_len = line_end - line_start;
 
-    // Calculate indent
+    // Calculate indent treating tabs as TOKENIZER_TAB_WIDTH spaces
     int indent = 0;
-    for (size_t i = 0;
-         i < line_len && (line_start[i] == ' ' || line_start[i] == '\t'); i++) {
-      indent++;
+    bool saw_space = false;
+    bool saw_tab = false;
+    size_t i = 0;
+    for (; i < line_len; i++) {
+      char c = line_start[i];
+      if (c == ' ') {
+        saw_space = true;
+        indent++;
+      } else if (c == '\t') {
+        saw_tab = true;
+        indent += TOKENIZER_TAB_WIDTH;
+      } else {
+        break;
+      }
+
+      if (saw_space && saw_tab) {
+        fprintf(stderr, "Mixed spaces and tabs in indentation on line %zu\n",
+                line_number);
+        tokenizer_report_error(out_err,
+                               "Mixed indentation (spaces and tabs are not "
+                               "allowed in the same block)",
+                               line_number, 1);
+        token_array_free(arr);
+        return NULL;
+      }
     }
 
     // Create a copy of the line (stripped)
-    const char *content_start = line_start + indent;
-    size_t content_len = line_len - indent;
+    const char *content_start = line_start + i;
+    size_t content_len = line_len - i;
 
     if (content_len > 0) {
       char *line = malloc(content_len + 1);
+      if (!line) {
+        fprintf(stderr, "Failed to allocate memory for line copy on line %zu\n",
+                line_number);
+        tokenizer_report_error(out_err,
+                               "Failed to allocate memory while tokenizing",
+                               line_number, 1);
+        token_array_free(arr);
+        return NULL;
+      }
       strncpy(line, content_start, content_len);
       line[content_len] = '\0';
 
@@ -209,6 +358,7 @@ TokenArray *tokenize(const char *source) {
     line_start = line_end;
     if (*line_start == '\n')
       line_start++;
+    line_number++;
   }
 
   // Add EOF token
@@ -218,13 +368,21 @@ TokenArray *tokenize(const char *source) {
   return arr;
 }
 
+// Free a single Token's resources
+void token_free(Token *token) {
+  if (!token)
+    return;
+  free((char *)token->text);
+  token->text = NULL;
+}
+
 // Free token array
 void token_array_free(TokenArray *array) {
   if (!array)
     return;
 
   for (size_t i = 0; i < array->count; i++) {
-    free(array->tokens[i].text);
+    free((char *)array->tokens[i].text);
   }
   free(array->tokens);
   free(array);
@@ -235,7 +393,17 @@ void token_print(Token *token) {
   if (!token)
     return;
 
-  printf("%-12s", token_type_names[token->type]);
+  // Bounds check before indexing token_type_names
+  const char *type_name;
+  size_t type_names_count =
+      sizeof(token_type_names) / sizeof(token_type_names[0]);
+  if (token->type < type_names_count) {
+    type_name = token_type_names[token->type];
+  } else {
+    type_name = "UNKNOWN";
+  }
+
+  printf("%-12s", type_name);
   if (token->type == TOK_INDENT) {
     printf(" (indent=%d)", token->indent_level);
   } else if (token->text) {
