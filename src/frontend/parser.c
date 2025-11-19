@@ -24,7 +24,7 @@ static Token *consume(Parser *p, TokenType expected) {
   }
 
   Token *tok = &p->tokens->tokens[p->pos];
-  if (expected != TOK_EOF && tok->type != expected) {
+  if (tok->type != expected) {
     fprintf(stderr, "Expected token type %d, got %d\n", expected, tok->type);
     return NULL;
   }
@@ -179,14 +179,17 @@ static bool parse_binary_op(Parser *p, BinOp *op, int *prec) {
     *prec = get_precedence(TOK_TIMES);
     consume_any(p);
     return true;
-  case TOK_DIVIDED:
-    *op = BINOP_DIV;
-    *prec = get_precedence(TOK_DIVIDED);
-    consume_any(p); // Consume DIVIDED
-    if (!consume(p, TOK_BY)) {
+  case TOK_DIVIDED: {
+    Token *next = peek(p, 1);
+    if (!next || next->type != TOK_BY) {
       return false;
     }
+    consume_any(p); // consume DIVIDED
+    consume_any(p); // consume BY
+    *op = BINOP_DIV;
+    *prec = get_precedence(TOK_DIVIDED);
     return true;
+  }
   default:
     return false;
   }
@@ -728,6 +731,10 @@ static ASTNode *parse_call(Parser *p, int indent) {
   size_t arg_capacity = 4;
   size_t arg_count = 0;
   ASTNode **args = malloc(sizeof(ASTNode *) * arg_capacity);
+  if (!args) {
+    fprintf(stderr, "parse_call: failed to allocate argument array\n");
+    return NULL;
+  }
 
   Token *tok = peek(p, 0);
   if (tok && tok->type == TOK_WITH) {
@@ -751,8 +758,17 @@ static ASTNode *parse_call(Parser *p, int indent) {
       }
 
       if (arg_count >= arg_capacity) {
-        arg_capacity *= 2;
-        args = realloc(args, sizeof(ASTNode *) * arg_capacity);
+        size_t new_capacity = arg_capacity * 2;
+        ASTNode **new_args = realloc(args, sizeof(ASTNode *) * new_capacity);
+        if (!new_args) {
+          fprintf(stderr, "parse_call: failed to grow argument array\n");
+          for (size_t i = 0; i < arg_count; i++)
+            ast_node_free(args[i]);
+          free(args);
+          return NULL;
+        }
+        args = new_args;
+        arg_capacity = new_capacity;
       }
       args[arg_count++] = arg;
     }
@@ -852,6 +868,10 @@ AST *parse(TokenArray *tokens) {
   ast->capacity = 16;
   ast->count = 0;
   ast->statements = malloc(sizeof(ASTNode *) * ast->capacity);
+  if (!ast->statements) {
+    free(ast);
+    return NULL;
+  }
 
   while (p.pos < tokens->count) {
     Token *tok = peek(&p, 0);
