@@ -82,11 +82,12 @@ void kronos_vm_free(KronosVM *vm);
  * Parameters:
  *   vm       - VM instance (must not be NULL).
  *   filepath - Path to .kr file to execute (must not be NULL).
- * Returns: 0 on success, negative KronosErrorCode on failure (e.g.,
- * -KRONOS_ERR_NOT_FOUND, -KRONOS_ERR_PARSE, -KRONOS_ERR_RUNTIME). Legacy
- * callers that only check for -1 remain compatible because all errors return a
- * negative value. Thread-safety: NOT thread-safe. Do not call concurrently on
- * the same VM.
+ * Returns:
+ *   0 on success.
+ *   Negative error code on failure (e.g., -KRONOS_ERR_NOT_FOUND,
+ *   -KRONOS_ERR_PARSE, -KRONOS_ERR_RUNTIME).
+ *   All errors return negative values for legacy compatibility.
+ * Thread-safety: NOT thread-safe. Do not call concurrently on the same VM.
  */
 int kronos_run_file(KronosVM *vm, const char *filepath);
 
@@ -96,8 +97,11 @@ int kronos_run_file(KronosVM *vm, const char *filepath);
  * Parameters:
  *   vm     - VM instance (must not be NULL).
  *   source - Kronos source code to execute (must not be NULL).
- * Returns: 0 on success, negative KronosErrorCode on failure (e.g.,
- * -KRONOS_ERR_PARSE, -KRONOS_ERR_RUNTIME).
+ * Returns:
+ *   0 on success.
+ *   Negative error code on failure (e.g., -KRONOS_ERR_PARSE,
+ *   -KRONOS_ERR_RUNTIME).
+ *   All errors return negative values for legacy compatibility.
  * Thread-safety: NOT thread-safe. Do not call concurrently on the same VM.
  */
 int kronos_run_string(KronosVM *vm, const char *source);
