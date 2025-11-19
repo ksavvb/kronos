@@ -1,8 +1,13 @@
 #include "runtime.h"
 #include "gc.h"
+#include <float.h>
+#include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define VALUE_COMPARE_EPSILON (1e-9)
 
 // String interning table
 #define INTERN_TABLE_SIZE 1024
@@ -24,7 +29,10 @@ void runtime_init(void) {
   gc_init();
 }
 
-// Cleanup runtime
+// Cleanup runtime.
+// NOTE: This must only run after every external reference to interned strings
+// has been released. We drop the intern table's own references via
+// value_release(), which decrements refcounts and frees only when they reach 0.
 void runtime_cleanup(void) {
   // Free interned strings
   for (size_t i = 0; i < INTERN_TABLE_SIZE; i++) {
@@ -100,11 +108,99 @@ KronosValue *value_new_nil(void) {
   return val;
 }
 
+// Create a new function value
+KronosValue *value_new_function(uint8_t *bytecode, size_t length, int arity) {
+  if (!bytecode || length == 0)
+    return NULL;
+
+  KronosValue *val = malloc(sizeof(KronosValue));
+  if (!val)
+    return NULL;
+
+  uint8_t *buffer = malloc(length);
+  if (!buffer) {
+    free(val);
+    return NULL;
+  }
+  memcpy(buffer, bytecode, length);
+
+  val->type = VAL_FUNCTION;
+  val->refcount = 1;
+  val->as.function.bytecode = buffer;
+  val->as.function.length = length;
+  val->as.function.arity = arity;
+
+  gc_track(val);
+  return val;
+}
+
+// Create a new list value
+KronosValue *value_new_list(size_t initial_capacity) {
+  size_t capacity = initial_capacity == 0 ? 4 : initial_capacity;
+
+  KronosValue *val = malloc(sizeof(KronosValue));
+  if (!val)
+    return NULL;
+
+  KronosValue **items = calloc(capacity, sizeof(KronosValue *));
+  if (!items) {
+    free(val);
+    return NULL;
+  }
+
+  val->type = VAL_LIST;
+  val->refcount = 1;
+  val->as.list.items = items;
+  val->as.list.count = 0;
+  val->as.list.capacity = capacity;
+
+  gc_track(val);
+  return val;
+}
+
+// Create a new channel value
+KronosValue *value_new_channel(Channel *channel) {
+  if (!channel)
+    return NULL;
+
+  KronosValue *val = malloc(sizeof(KronosValue));
+  if (!val)
+    return NULL;
+
+  val->type = VAL_CHANNEL;
+  val->refcount = 1;
+  val->as.channel = channel;
+
+  gc_track(val);
+  return val;
+}
+
 // Retain a value (increment refcount)
 void value_retain(KronosValue *val) {
   if (val) {
+    if (val->refcount == UINT32_MAX) {
+      fprintf(stderr, "KronosValue refcount overflow\n");
+      abort();
+    }
     val->refcount++;
   }
+}
+
+static void release_stack_push(KronosValue ***stack, size_t *count,
+                               size_t *capacity, KronosValue *val) {
+  if (*count == *capacity) {
+    size_t new_capacity = (*capacity == 0) ? 8 : (*capacity * 2);
+    KronosValue **new_stack =
+        realloc(*stack, new_capacity * sizeof(KronosValue *));
+    if (!new_stack) {
+      fprintf(stderr, "Failed to grow release stack\n");
+      abort();
+    }
+    *stack = new_stack;
+    *capacity = new_capacity;
+  }
+
+  (*stack)[(*count)++] = val;
 }
 
 // Release a value (decrement refcount, free if 0)
@@ -112,30 +208,59 @@ void value_release(KronosValue *val) {
   if (!val)
     return;
 
-  val->refcount--;
   if (val->refcount == 0) {
-    gc_untrack(val);
+    fprintf(stderr, "KronosValue refcount underflow\n");
+    return;
+  }
+
+  KronosValue **stack = NULL;
+  size_t stack_count = 0;
+  size_t stack_capacity = 0;
+  release_stack_push(&stack, &stack_count, &stack_capacity, val);
+
+  while (stack_count > 0) {
+    KronosValue *current = stack[--stack_count];
+    if (!current)
+      continue;
+
+    if (current->refcount == 0) {
+      fprintf(stderr, "KronosValue refcount underflow\n");
+      continue;
+    }
+
+    current->refcount--;
+    if (current->refcount > 0)
+      continue;
+
+    gc_untrack(current);
 
     // Free any owned memory
-    switch (val->type) {
+    switch (current->type) {
     case VAL_STRING:
-      free(val->as.string.data);
+      free(current->as.string.data);
       break;
     case VAL_FUNCTION:
-      free(val->as.function.bytecode);
+      free(current->as.function.bytecode);
       break;
     case VAL_LIST:
-      for (size_t i = 0; i < val->as.list.count; i++) {
-        value_release(val->as.list.items[i]);
+      for (size_t i = 0; i < current->as.list.count; i++) {
+        KronosValue *child = current->as.list.items[i];
+        if (child)
+          release_stack_push(&stack, &stack_count, &stack_capacity, child);
       }
-      free(val->as.list.items);
+      free(current->as.list.items);
+      break;
+    case VAL_CHANNEL:
+      // Channels are currently managed externally.
       break;
     default:
       break;
     }
 
-    free(val);
+    free(current);
   }
+
+  free(stack);
 }
 
 // Print a value
@@ -147,11 +272,15 @@ void value_print(KronosValue *val) {
 
   switch (val->type) {
   case VAL_NUMBER:
-    // Print integer if it's a whole number
-    if (val->as.number == (long)val->as.number) {
-      printf("%ld", (long)val->as.number);
-    } else {
-      printf("%g", val->as.number);
+    // Print integer if it's a whole number without casting to long
+    {
+      double intpart;
+      double frac = modf(val->as.number, &intpart);
+      if (frac == 0.0) {
+        printf("%.0f", val->as.number);
+      } else {
+        printf("%g", val->as.number);
+      }
     }
     break;
   case VAL_STRING:
@@ -211,7 +340,7 @@ bool value_equals(KronosValue *a, KronosValue *b) {
 
   switch (a->type) {
   case VAL_NUMBER:
-    return a->as.number == b->as.number;
+    return fabs(a->as.number - b->as.number) < VALUE_COMPARE_EPSILON;
   case VAL_STRING:
     return a->as.string.length == b->as.string.length &&
            memcmp(a->as.string.data, b->as.string.data, a->as.string.length) ==
