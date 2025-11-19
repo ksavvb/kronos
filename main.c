@@ -4,6 +4,7 @@
 #include "src/frontend/parser.h"
 #include "src/frontend/tokenizer.h"
 #include "src/vm/vm.h"
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,7 +57,7 @@ int kronos_run_string(KronosVM *vm, const char *source) {
   vm_clear_error(vm);
 
   // Tokenize
-  TokenArray *tokens = tokenize(source);
+  TokenArray *tokens = tokenize(source, NULL);
   if (!tokens) {
     return vm_error(vm, KRONOS_ERR_TOKENIZE, "Tokenization failed");
   }
@@ -75,9 +76,8 @@ int kronos_run_string(KronosVM *vm, const char *source) {
   ast_free(ast);
 
   if (!bytecode) {
-    return vm_errorf(
-        vm, KRONOS_ERR_COMPILE, "Compilation failed%s%s",
-        compile_err ? ": " : "", compile_err ? compile_err : "");
+    return vm_errorf(vm, KRONOS_ERR_COMPILE, "Compilation failed%s%s",
+                     compile_err ? ": " : "", compile_err ? compile_err : "");
   }
 
   // Execute
@@ -108,17 +108,16 @@ int kronos_run_file(KronosVM *vm, const char *filepath) {
 
   // Get file size
   if (fseek(file, 0, SEEK_END) != 0) {
-    int err = vm_errorf(vm, KRONOS_ERR_IO,
-                        "Failed to seek to end of file: %s", filepath);
+    int err = vm_errorf(vm, KRONOS_ERR_IO, "Failed to seek to end of file: %s",
+                        filepath);
     fclose(file);
     return err;
   }
 
   long size = ftell(file);
   if (size < 0) {
-    int err =
-        vm_errorf(vm, KRONOS_ERR_IO, "Failed to determine file size: %s",
-                  filepath);
+    int err = vm_errorf(vm, KRONOS_ERR_IO, "Failed to determine file size: %s",
+                        filepath);
     fclose(file);
     return err;
   }
@@ -152,8 +151,7 @@ int kronos_run_file(KronosVM *vm, const char *filepath) {
 
   // Check for read errors
   if (ferror(file)) {
-    int err = vm_errorf(vm, KRONOS_ERR_IO, "Failed to read file: %s",
-                        filepath);
+    int err = vm_errorf(vm, KRONOS_ERR_IO, "Failed to read file: %s", filepath);
     free(source);
     fclose(file);
     return err;
@@ -161,8 +159,8 @@ int kronos_run_file(KronosVM *vm, const char *filepath) {
 
   // Check for unexpected partial read (not EOF)
   if (read_size < length && !feof(file)) {
-    int err = vm_errorf(vm, KRONOS_ERR_IO, "Incomplete read from file: %s",
-                        filepath);
+    int err =
+        vm_errorf(vm, KRONOS_ERR_IO, "Incomplete read from file: %s", filepath);
     free(source);
     fclose(file);
     return err;
