@@ -617,6 +617,29 @@ static void compile_statement(Compiler *c, ASTNode *node) {
       // Stack at exit: [list, index] (OP_JUMP_IF_FALSE already popped has_more)
       emit_byte(c, OP_POP); // pop index
       emit_byte(c, OP_POP); // pop list
+
+      // Reset hidden iterator variables to null to release references
+      KronosValue *nil_val = value_new_nil();
+      emit_constant(c, nil_val);
+      if (compiler_has_error(c))
+        return;
+      emit_byte(c, OP_STORE_VAR);
+      emit_uint16(c, (uint16_t)iter_list_name_idx);
+      emit_byte(c, 1); // mutable
+      emit_byte(c, 0); // no type annotation
+      if (compiler_has_error(c))
+        return;
+
+      nil_val = value_new_nil();
+      emit_constant(c, nil_val);
+      if (compiler_has_error(c))
+        return;
+      emit_byte(c, OP_STORE_VAR);
+      emit_uint16(c, (uint16_t)iter_index_name_idx);
+      emit_byte(c, 1); // mutable
+      emit_byte(c, 0); // no type annotation
+      if (compiler_has_error(c))
+        return;
     }
     break;
   }
