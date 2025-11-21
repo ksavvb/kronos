@@ -9,13 +9,47 @@ set name to value
 
 ## Data Types
 - **Numbers:** `42`, `3.14`, `-10`
-- **Strings:** `"Hello, World!"`
-- **Booleans:** `true`, `false` (future)
-- **Nil:** `nil` (future)
+- **Strings:** `"Hello, World!"`, `f"Hello, {name}!"` (f-strings)
+- **Booleans:** `true`, `false`
+- **Null:** `null`
+- **Lists:** `list 1, 2, 3`
 
 ## Print
 ```kronos
 print expression
+```
+
+## Strings
+```kronos
+# Concatenation
+set msg to "Hello" plus " " plus "World"
+
+# Indexing
+set char to text at 0
+set last to text at -1
+
+# Slicing
+set slice to text from 0 to 5
+set rest to text from 3 to end
+
+# F-strings
+set name to "Alice"
+set greeting to f"Hello, {name}!"
+```
+
+## String Functions
+```kronos
+call len with "hello"              # Length
+call uppercase with "hello"        # "HELLO"
+call lowercase with "HELLO"        # "hello"
+call trim with "  hello  "         # "hello"
+call split with "a,b,c", ","       # list ["a", "b", "c"]
+call join with list "a", "b", "c", "-"  # "a-b-c"
+call contains with "hello", "ell"  # true
+call starts_with with "hello", "he"  # true
+call ends_with with "hello", "lo"  # true
+call replace with "hello", "l", "L"  # "heLLo"
+call to_string with 42             # "42"
 ```
 
 ## Arithmetic

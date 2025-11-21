@@ -14,9 +14,10 @@ Complete syntax guide for the Kronos programming language - a human-readable lan
 8. [Loops](#loops)
 9. [Built-in Constants and Functions](#built-in-constants-and-functions)
 10. [Functions](#functions)
-11. [Safety & Error Handling](#safety--error-handling)
-12. [Comments](#comments)
-13. [Indentation](#indentation)
+11. [String Operations](#string-operations)
+12. [Safety & Error Handling](#safety--error-handling)
+13. [Comments](#comments)
+14. [Indentation](#indentation)
 
 ---
 
@@ -124,6 +125,27 @@ set greeting to "Hello, World!"
 set empty to ""
 set multiword to "This is a sentence"
 ```
+
+**F-Strings (Formatted String Literals):**
+
+F-strings allow embedding expressions inside strings using `f"..."` or `f'...'` syntax.
+
+```kronos
+set name to "Alice"
+set greeting to f"Hello, {name}!"
+print greeting  # Output: Hello, Alice!
+
+set x to 5
+set y to 10
+set result to f"{x} plus {y} equals {x plus y}"
+print result  # Output: 5 plus 10 equals 15
+```
+
+**Features:**
+- Expression evaluation inside `{ }` blocks
+- Automatic type conversion (numbers, booleans, null → strings)
+- Multiple expressions in a single f-string
+- Nested expressions and function calls
 
 ### Booleans
 
@@ -623,12 +645,40 @@ call multiply with 10, 5   # Returns 50
 call divide with 10, 5     # Returns 2
 ```
 
+**String Operations:**
+
+- `len(value)` - Get length of string or list
+- `uppercase(string)` - Convert string to uppercase
+- `lowercase(string)` - Convert string to lowercase
+- `trim(string)` - Remove leading and trailing whitespace
+- `split(string, delimiter)` - Split string into list by delimiter
+- `join(list, delimiter)` - Join list of strings with delimiter
+- `to_string(value)` - Convert any value to string representation
+- `contains(string, substring)` - Check if string contains substring (returns boolean)
+- `starts_with(string, prefix)` - Check if string starts with prefix (returns boolean)
+- `ends_with(string, suffix)` - Check if string ends with suffix (returns boolean)
+- `replace(string, old, new)` - Replace all occurrences of old substring with new
+
+**String Function Examples:**
+
+```kronos
+set text to "Hello World"
+set length to call len with text              # Returns 11
+set upper to call uppercase with text         # Returns "HELLO WORLD"
+set trimmed to call trim with "  hello  "     # Returns "hello"
+set parts to call split with "a,b,c", ","     # Returns list ["a", "b", "c"]
+set joined to call join with parts, "-"       # Returns "a-b-c"
+set has_ello to call contains with text, "ello"  # Returns true
+set replaced to call replace with text, "World", "Kronos"  # Returns "Hello Kronos"
+```
+
 **Notes:**
 
 - Built-in functions require exact argument counts
 - All math functions require numeric arguments
+- String functions require string arguments (except `len` which also works with lists)
 - Division by zero returns nil and prints an error
-- Function names `add`, `subtract`, `multiply`, `divide` are reserved
+- Function names are reserved and cannot be used as variable names
 
 ---
 
@@ -778,12 +828,86 @@ print "=== Done ==="
 
 ### Notes
 
-- Function calls are statements, not expressions (currently can't be used in assignments)
+- Function calls can be used as expressions (can be used in assignments)
 - Parameters are passed by value
 - All parameters are required (no default values yet)
 - Recursive functions are supported
 - Functions must be defined before they are called
-- Cannot override built-in function names (`add`, `subtract`, `multiply`, `divide`)
+- Cannot override built-in function names
+
+---
+
+## String Operations
+
+Kronos provides comprehensive string manipulation capabilities including concatenation, indexing, slicing, and built-in functions.
+
+### String Concatenation
+
+Use the `plus` operator to concatenate strings:
+
+```kronos
+set greeting to "Hello"
+set name to "World"
+set message to greeting plus ", " plus name plus "!"
+print message  # Output: Hello, World!
+```
+
+### String Indexing
+
+Access individual characters using the `at` operator:
+
+```kronos
+set text to "Hello"
+set first to text at 0      # Returns "H"
+set last to text at 4       # Returns "o"
+set last_char to text at -1 # Returns "o" (negative index from end)
+```
+
+**Notes:**
+- Indices start at 0
+- Negative indices count from the end (-1 is last character)
+- Returns a single-character string
+
+### String Slicing
+
+Extract substrings using the `from ... to` syntax:
+
+```kronos
+set text to "Hello World"
+set slice1 to text from 0 to 5    # Returns "Hello"
+set slice2 to text from 6 to 11   # Returns "World"
+set slice3 to text from 0 to end  # Returns "Hello World"
+```
+
+**Notes:**
+- `from <start> to <end>` extracts characters from start (inclusive) to end (exclusive)
+- Use `end` keyword to slice to the end of the string
+- Returns a new string
+
+### F-Strings (Formatted String Literals)
+
+F-strings allow embedding expressions inside strings:
+
+```kronos
+set name to "Alice"
+set age to 30
+set greeting to f"Hello, {name}! You are {age} years old."
+print greeting  # Output: Hello, Alice! You are 30 years old.
+
+set x to 5
+set y to 10
+set result to f"{x} plus {y} equals {x plus y}"
+print result  # Output: 5 plus 10 equals 15
+```
+
+**Features:**
+- Syntax: `f"text {expression} more text"` or `f'text {expression}'`
+- Expression evaluation inside `{ }` blocks
+- Automatic type conversion (numbers, booleans, null → strings)
+- Multiple expressions in a single f-string
+- Nested expressions and function calls
+
+For complete list of string built-in functions, see [Built-in Constants and Functions](#built-in-constants-and-functions).
 
 ---
 
