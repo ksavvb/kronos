@@ -12,13 +12,13 @@
 // Token type to string (for debugging)
 // Must match TokenType enum order exactly
 static const char *token_type_names[] = {
-    "NUMBER",  "STRING", "SET",     "LET",   "TO",       "AS",    "IF",
-    "FOR",     "WHILE",  "IN",      "RANGE", "LIST",     "AT",    "FROM",
-    "END",     "FUNCTION", "WITH",  "CALL",
-    "RETURN",  "TRUE",   "FALSE",   "NULL",  "IS",       "EQUAL", "NOT",
-    "GREATER", "LESS",   "THAN",    "AND",   "OR",       "PRINT", "PLUS",
-    "MINUS",   "TIMES",  "DIVIDED", "BY",    "NAME",     "COLON", "COMMA",
-    "NEWLINE", "INDENT", "EOF"};
+    "NUMBER",  "STRING", "FSTRING",  "SET",   "LET",   "TO",      "AS",
+    "IF",      "FOR",    "WHILE",    "IN",    "RANGE", "LIST",    "AT",
+    "FROM",    "END",    "FUNCTION", "WITH",  "CALL",  "RETURN",  "TRUE",
+    "FALSE",   "NULL",   "IS",       "EQUAL", "NOT",   "GREATER", "LESS",
+    "THAN",    "AND",    "OR",       "PRINT", "PLUS",  "MINUS",   "TIMES",
+    "DIVIDED", "BY",     "NAME",     "COLON", "COMMA", "NEWLINE", "INDENT",
+    "EOF"};
 
 // Helper to create token array
 static TokenArray *token_array_new(void) {
@@ -143,8 +143,17 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
       continue;
     }
 
+    // Check for f-string prefix (f"..." or f'...')
+    bool is_fstring = false;
+    if (col + 1 < len && line[col] == 'f' &&
+        (line[col + 1] == '"' || line[col + 1] == '\'')) {
+      is_fstring = true;
+      col++; // Skip 'f'
+    }
+
     // Strings with escape handling
-    if (line[col] == '"') {
+    if (line[col] == '"' || line[col] == '\'') {
+      char quote_char = line[col];
       size_t content_start = col + 1;
       size_t cursor = content_start;
       bool closed = false;
@@ -156,7 +165,7 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
           } else {
             break;
           }
-        } else if (line[cursor] == '"') {
+        } else if (line[cursor] == quote_char) {
           closed = true;
           break;
         } else {
@@ -170,7 +179,7 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
       }
 
       size_t content_len = cursor - content_start;
-      Token tok = {TOK_STRING, NULL, content_len, 0};
+      Token tok = {is_fstring ? TOK_FSTRING : TOK_STRING, NULL, content_len, 0};
       char *text_buf = malloc(content_len + 1);
       if (!text_buf) {
         fprintf(stderr, "Failed to allocate memory for string literal\n");
