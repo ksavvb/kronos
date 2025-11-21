@@ -11,6 +11,7 @@ extern "C" {
 typedef enum {
   TOK_NUMBER,
   TOK_STRING,
+  TOK_FSTRING,
   TOK_SET,
   TOK_LET,
   TOK_TO,

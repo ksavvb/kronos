@@ -359,15 +359,18 @@ value_release(val);
 
 ### ✅ Implemented
 
-- [x] Variables (`set x to value`)
+- [x] Variables (`set x to value`, `let x to value`)
 - [x] Numbers (integers & floats)
-- [x] Strings
+- [x] Strings with f-strings (`f"text {expression}"`)
+- [x] Lists/Arrays (literals, indexing, slicing, iteration)
 - [x] Print statements
 - [x] Arithmetic (`plus`, `minus`, `times`, `divided by`)
 - [x] Comparisons (`is equal`, `is greater than`, `is less than`)
+- [x] Logical operators (`and`, `or`, `not`)
 - [x] If statements
-- [x] For loops (`for i in range start to end`)
+- [x] For loops (`for i in range start to end`, `for item in list`)
 - [x] While loops
+- [x] String operations (concatenation, indexing, slicing, built-in functions)
 - [x] Nested structures
 - [x] REPL mode
 - [x] File execution
@@ -377,11 +380,10 @@ value_release(val);
 #### Phase 4: Enhanced Language Features
 
 - [ ] Else/else if statements
-- [ ] Logical operators (AND, OR, NOT)
-- [ ] String data type
-- [ ] Lists/arrays
-- [ ] Comments
-- [ ] String concatenation and operations
+- [ ] Break and continue statements
+- [ ] Dictionaries/maps
+- [ ] Module system
+- [ ] Exception handling
 
 #### Phase 5: Concurrency
 
