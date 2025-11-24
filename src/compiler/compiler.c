@@ -78,7 +78,7 @@ static void patch_pending_jumps(Compiler *c) {
   while (jump) {
     size_t target_pos = jump->is_break ? c->loop_stack->loop_end : c->loop_stack->loop_continue;
     size_t offset = target_pos - (jump->jump_pos + 1);
-    
+
     if (jump->is_break) {
       // Forward jump
       if (offset > 255) {
@@ -642,7 +642,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
     size_t *jump_positions = NULL;
     size_t jump_count = 0;
     size_t jump_capacity = 0;
-    
+
     // Collect all skip jumps (jumps that skip to the end)
     size_t *skip_jumps = NULL;
     size_t skip_count = 0;
@@ -660,11 +660,11 @@ static void compile_statement(Compiler *c, ASTNode *node) {
       jump_capacity = new_capacity;
     }
     jump_positions[jump_count++] = jump_offset_pos;
-    
+
     // Only emit skip jump if there are else-if or else blocks
     // For simple if statements, we don't need a skip jump
     bool has_else_or_else_if = (node->as.if_stmt.else_if_count > 0 || node->as.if_stmt.else_block_size > 0);
-    
+
     if (has_else_or_else_if) {
       // Emit skip jump at end of if block (will be patched at the end)
       emit_byte(c, OP_JUMP);
@@ -749,7 +749,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
         skip_capacity = new_capacity;
       }
       skip_jumps[skip_count++] = else_if_jump_pos;
-      
+
       // Add jump-if-false to list (should point to next else-if/else/end)
       if (jump_count + 1 > jump_capacity) {
         size_t new_capacity = jump_capacity == 0 ? 4 : jump_capacity * 2;
@@ -789,14 +789,14 @@ static void compile_statement(Compiler *c, ASTNode *node) {
         }
       }
     }
-    
+
     // Patch all skip jumps to point to end
     size_t end_pos = c->bytecode->count;
     for (size_t j = 0; j < skip_count; j++) {
       size_t pos = skip_jumps[j];
       c->bytecode->code[pos] = (uint8_t)(end_pos - pos - 1);
     }
-    
+
     // If no else block, also patch jump-if-false jumps to end
     if (node->as.if_stmt.else_block_size == 0) {
       for (size_t j = 0; j < jump_count; j++) {
@@ -852,7 +852,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
       // For now, we'll compile the step expression and use it
       // If step is NULL, we'll use 1
       bool has_step = (node->as.for_stmt.step != NULL);
-      
+
       // For comparison, we need to check direction based on step
       // If step > 0: check var <= end
       // If step < 0: check var >= end
@@ -860,7 +860,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
       // Actually, we can't know the sign at compile time if step is an expression
       // So we'll always use <= and handle negative steps at runtime
       // Or we can check if step is a constant and optimize
-      
+
       // For simplicity, always use <= for now
       // TODO: Optimize for negative steps when step is a constant
       emit_byte(c, OP_LTE);
@@ -900,7 +900,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
         pop_loop(c);
         return;
       }
-      
+
       if (has_step) {
         // Use the specified step value
         compile_expression(c, node->as.for_stmt.step);
@@ -917,7 +917,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
           return;
         }
       }
-      
+
       emit_byte(c, OP_ADD);
       emit_byte(c, OP_STORE_VAR);
       emit_uint16(c, (uint16_t)var_idx);

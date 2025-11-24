@@ -1065,7 +1065,7 @@ static ASTNode *parse_for(Parser *p, int indent) {
       return NULL;
     }
     iterable = start; // For range, iterable is the start value
-    
+
     // Check for optional "by step" clause
     Token *after_end = peek(p, 0);
     if (after_end && after_end->type == TOK_BY) {
