@@ -1,3 +1,16 @@
+/**
+ * @file tokenizer.c
+ * @brief Lexical analyzer for Kronos source code
+ * 
+ * Converts Kronos source code into a stream of tokens. Handles:
+ * - Keywords (set, let, if, for, while, etc.)
+ * - Literals (numbers, strings, f-strings, booleans, null)
+ * - Operators (plus, minus, times, divided by, is equal, etc.)
+ * - Identifiers and variable names
+ * - Indentation tracking (spaces and tabs)
+ * - Newlines and special characters
+ */
+
 #define _POSIX_C_SOURCE 200809L
 #include "tokenizer.h"
 #include <ctype.h>
@@ -6,11 +19,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Tabs count as this many spaces when computing indentation
+/** Tab width in spaces for indentation calculation */
 #define TOKENIZER_TAB_WIDTH 8
 
-// Token type to string (for debugging)
-// Must match TokenType enum order exactly
+/**
+ * Token type names for debugging output
+ * Must match TokenType enum order exactly
+ */
 static const char *token_type_names[] = {
     "NUMBER",  "STRING", "FSTRING",  "SET",   "LET",   "TO",      "AS",
     "IF",      "FOR",    "WHILE",    "IN",    "RANGE", "LIST",    "AT",
@@ -20,7 +35,14 @@ static const char *token_type_names[] = {
     "DIVIDED", "BY",     "NAME",     "COLON", "COMMA", "NEWLINE", "INDENT",
     "EOF"};
 
-// Helper to create token array
+/**
+ * @brief Allocate and initialize a new token array
+ * 
+ * Creates a dynamically-growing array to hold tokens during tokenization.
+ * Starts with capacity 32 and grows as needed.
+ * 
+ * @return New token array, or NULL on allocation failure
+ */
 static TokenArray *token_array_new(void) {
   TokenArray *arr = malloc(sizeof(TokenArray));
   if (!arr)
@@ -37,7 +59,16 @@ static TokenArray *token_array_new(void) {
   return arr;
 }
 
-// Helper to add token
+/**
+ * @brief Add a token to the array
+ * 
+ * Automatically grows the array if needed. On failure, frees the token's
+ * text if it was allocated.
+ * 
+ * @param arr Token array to add to
+ * @param token Token to add (text will be owned by array)
+ * @return true on success, false on allocation failure
+ */
 static bool token_array_add(TokenArray *arr, Token token) {
   if (!arr)
     return false;
@@ -58,7 +89,16 @@ static bool token_array_add(TokenArray *arr, Token token) {
   return true;
 }
 
-// Check if string matches keyword
+/**
+ * @brief Determine if a string matches a Kronos keyword
+ * 
+ * Checks the string against all known keywords. If no match is found,
+ * returns TOK_NAME indicating it's an identifier.
+ * 
+ * @param text String to check (not null-terminated)
+ * @param len Length of the string
+ * @return Token type (keyword type or TOK_NAME if not a keyword)
+ */
 static TokenType match_keyword(const char *text, size_t len) {
   struct {
     const char *keyword;
@@ -96,7 +136,21 @@ static TokenType match_keyword(const char *text, size_t len) {
   return TOK_NAME;
 }
 
-// Tokenize a single line
+/**
+ * @brief Tokenize a single line of source code
+ * 
+ * Processes one line, extracting all tokens. Handles:
+ * - Numbers (integers and floats)
+ * - Strings and f-strings (with escape sequences)
+ * - Keywords and identifiers
+ * - Operators and punctuation
+ * - Indentation tokens
+ * 
+ * @param arr Token array to append tokens to
+ * @param line The line to tokenize (should not include leading whitespace)
+ * @param indent Indentation level in spaces (already calculated)
+ * @return true on success, false on error (e.g., unterminated string)
+ */
 static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
   size_t len = strlen(line);
   size_t col = 0;
@@ -117,7 +171,8 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
     if (col >= len)
       break;
 
-    // Numbers
+    // Tokenize numbers (integers and floating-point)
+    // Supports: 42, 3.14, 0.5, etc.
     if (isdigit(line[col])) {
       size_t start = col;
       while (col < len && isdigit(line[col])) {
@@ -147,6 +202,7 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
     }
 
     // Check for f-string prefix (f"..." or f'...')
+    // F-strings allow embedded expressions like f"Hello {name}"
     bool is_fstring = false;
     if (col + 1 < len && line[col] == 'f' &&
         (line[col + 1] == '"' || line[col + 1] == '\'')) {
@@ -154,7 +210,8 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
       col++; // Skip 'f'
     }
 
-    // Strings with escape handling
+    // Tokenize string literals (handles escape sequences)
+    // Supports both single and double quotes
     if (line[col] == '"' || line[col] == '\'') {
       char quote_char = line[col];
       size_t content_start = col + 1;
@@ -199,7 +256,9 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
       continue;
     }
 
-    // Names and keywords (allow dots for module.function syntax)
+    // Tokenize identifiers and keywords
+    // Identifiers can contain letters, digits, underscores, and dots
+    // (dots are allowed for module.function syntax like math.sqrt)
     if (isalpha(line[col]) || line[col] == '_') {
       size_t start = col;
       while (col < len && (isalnum(line[col]) || line[col] == '_' || line[col] == '.')) {
@@ -223,7 +282,8 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
       continue;
     }
 
-    // Single character tokens
+    // Tokenize single-character punctuation
+    // Colon is used for if/for/while statement headers
     if (line[col] == ':') {
       Token tok = {TOK_COLON, NULL, 1, 0};
       tok.text = strdup(":");
@@ -254,11 +314,13 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
       continue;
     }
 
-    // Unknown character, skip it
+    // Unknown character - skip it (allows graceful degradation)
+    // In a strict mode, this could be an error
     col++;
   }
 
-  // Add newline token if line had content
+  // Add newline token to mark end of line (if line had content)
+  // Empty lines don't get newline tokens to avoid clutter
   if (len > 0) {
     char *newline_text = strdup("\n");
     if (!newline_text) {
@@ -274,7 +336,13 @@ static bool tokenize_line(TokenArray *arr, const char *line, int indent) {
   return true;
 }
 
-// Free a TokenizeError structure
+/**
+ * @brief Free a tokenization error structure
+ * 
+ * Releases memory allocated for an error message and the error structure itself.
+ * 
+ * @param err Error structure to free (safe to pass NULL)
+ */
 void tokenize_error_free(TokenizeError *err) {
   if (!err)
     return;
@@ -282,7 +350,17 @@ void tokenize_error_free(TokenizeError *err) {
   free(err);
 }
 
-// Helper to set tokenize error info
+/**
+ * @brief Report a tokenization error
+ * 
+ * Creates and stores an error structure with message and position information.
+ * Only sets the error if out_err is provided and no error is already set.
+ * 
+ * @param out_err Pointer to error output (can be NULL to ignore)
+ * @param message Error message (will be copied)
+ * @param line Line number where error occurred (1-indexed)
+ * @param column Column number where error occurred (1-indexed)
+ */
 static void tokenizer_report_error(TokenizeError **out_err, const char *message,
                                    size_t line, size_t column) {
   if (!out_err || *out_err)
@@ -302,7 +380,17 @@ static void tokenizer_report_error(TokenizeError **out_err, const char *message,
   *out_err = err;
 }
 
-// Tokenize source code
+/**
+ * @brief Tokenize Kronos source code
+ * 
+ * Main entry point for lexical analysis. Splits source into lines, calculates
+ * indentation, and tokenizes each line. Handles mixed indentation errors
+ * (spaces and tabs in the same block).
+ * 
+ * @param source Complete source code to tokenize (must not be NULL)
+ * @param out_err Optional pointer to receive error information
+ * @return Token array on success, NULL on error
+ */
 TokenArray *tokenize(const char *source, TokenizeError **out_err) {
   // Initialize error output
   if (out_err)
@@ -336,13 +424,13 @@ TokenArray *tokenize(const char *source, TokenizeError **out_err) {
     return NULL;
   }
 
-  // Split source into lines
+  // Process source line by line
   const char *line_start = source;
   const char *line_end;
   size_t line_number = 1;
 
   while (*line_start) {
-    // Find end of line
+    // Find the end of the current line (newline or end of string)
     line_end = line_start;
     while (*line_end && *line_end != '\n') {
       line_end++;
@@ -351,7 +439,9 @@ TokenArray *tokenize(const char *source, TokenizeError **out_err) {
     // Calculate line length
     size_t line_len = line_end - line_start;
 
-    // Calculate indent treating tabs as TOKENIZER_TAB_WIDTH spaces
+    // Calculate indentation level
+    // Tabs are treated as TOKENIZER_TAB_WIDTH spaces
+    // Mixed spaces and tabs in the same block is an error
     int indent = 0;
     bool saw_space = false;
     bool saw_tab = false;
@@ -365,9 +455,10 @@ TokenArray *tokenize(const char *source, TokenizeError **out_err) {
         saw_tab = true;
         indent += TOKENIZER_TAB_WIDTH;
       } else {
-        break;
+        break; // End of leading whitespace
       }
 
+      // Error: mixing spaces and tabs in indentation
       if (saw_space && saw_tab) {
         fprintf(stderr, "Mixed spaces and tabs in indentation on line %zu\n",
                 line_number);
@@ -380,7 +471,7 @@ TokenArray *tokenize(const char *source, TokenizeError **out_err) {
       }
     }
 
-    // Create a copy of the line (stripped)
+    // Extract line content (after leading whitespace)
     const char *content_start = line_start + i;
     size_t content_len = line_len - i;
 
@@ -415,7 +506,7 @@ TokenArray *tokenize(const char *source, TokenizeError **out_err) {
     line_number++;
   }
 
-  // Add EOF token
+  // Add end-of-file token to mark completion
   Token eof = {TOK_EOF, NULL, 0, 0};
   if (!token_array_add(arr, eof)) {
     tokenizer_report_error(
@@ -427,7 +518,13 @@ TokenArray *tokenize(const char *source, TokenizeError **out_err) {
   return arr;
 }
 
-// Free a single Token's resources
+/**
+ * @brief Free resources owned by a single token
+ * 
+ * Releases the token's text string if it was allocated.
+ * 
+ * @param token Token to free (safe to pass NULL)
+ */
 void token_free(Token *token) {
   if (!token)
     return;
@@ -435,7 +532,13 @@ void token_free(Token *token) {
   token->text = NULL;
 }
 
-// Free token array
+/**
+ * @brief Free a token array and all its tokens
+ * 
+ * Releases all token text strings and the array structure itself.
+ * 
+ * @param array Token array to free (safe to pass NULL)
+ */
 void token_array_free(TokenArray *array) {
   if (!array)
     return;
@@ -447,7 +550,14 @@ void token_array_free(TokenArray *array) {
   free(array);
 }
 
-// Print token (debug)
+/**
+ * @brief Print a token for debugging
+ * 
+ * Outputs the token type and value in a human-readable format.
+ * Useful for debugging tokenization issues.
+ * 
+ * @param token Token to print (safe to pass NULL)
+ */
 void token_print(Token *token) {
   if (!token)
     return;

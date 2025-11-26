@@ -1,18 +1,21 @@
-/*
- * Kronos Language Server Protocol Implementation
- *
- * This LSP server provides comprehensive language support for Kronos.
- *
- * Current capabilities:
- * - Keyword and built-in function completion
- * - Accurate diagnostics with line/column numbers
+/**
+ * @file lsp_server.c
+ * @brief Language Server Protocol implementation for Kronos
+ * 
+ * Provides comprehensive IDE support for Kronos through the Language Server Protocol.
+ * Communicates with editors via stdin/stdout using JSON-RPC 2.0.
+ * 
+ * Features:
+ * - Code completion (keywords, built-ins, variables, functions)
+ * - Diagnostics (syntax errors, undefined variables, type mismatches)
  * - Go-to-definition for variables and functions
  * - Hover information with types and documentation
  * - Document symbols / outline view
+ * - Semantic token highlighting
  * - Context-aware completions
- *
+ * 
  * Usage: ./kronos-lsp
- * Communicates via stdin/stdout using JSON-RPC 2.0
+ * The server reads JSON-RPC messages from stdin and writes responses to stdout.
  */
 
 #include "../frontend/parser.h"
@@ -24,40 +27,64 @@
 #include <string.h>
 #include <strings.h>
 
-// Symbol types
+/**
+ * Symbol types in the symbol table
+ */
 typedef enum {
-  SYMBOL_VARIABLE,
-  SYMBOL_FUNCTION,
-  SYMBOL_PARAMETER,
+  SYMBOL_VARIABLE,  /**< Variable declaration (set/let) */
+  SYMBOL_FUNCTION,  /**< Function definition */
+  SYMBOL_PARAMETER, /**< Function parameter */
 } SymbolType;
 
-// Symbol information
+/**
+ * Symbol information structure
+ * 
+ * Represents a symbol (variable, function, or parameter) in the source code.
+ * Symbols are stored in a linked list for the document's symbol table.
+ */
 typedef struct Symbol {
-  char *name;
-  SymbolType type;
-  size_t line;        // 1-based line number
-  size_t column;      // 1-based column number
-  char *type_name;    // Optional type annotation (NULL if not specified)
-  bool is_mutable;    // For variables: true for 'let', false for 'set'
-  size_t param_count; // For functions: number of parameters
-  bool used;          // Track if symbol is used (read/called) - deprecated, use read/written
-  bool written;       // Track if variable has been written to (assigned)
-  bool read;          // Track if variable has been read from (used in expression)
-  struct Symbol *next;
+  char *name;              /**< Symbol name */
+  SymbolType type;         /**< Type of symbol */
+  size_t line;             /**< 1-based line number where symbol is defined */
+  size_t column;           /**< 1-based column number where symbol is defined */
+  char *type_name;         /**< Optional type annotation (e.g., "number", "string") */
+  bool is_mutable;         /**< For variables: true for 'let', false for 'set' */
+  size_t param_count;      /**< For functions: number of parameters */
+  bool used;               /**< @deprecated Use read/written instead */
+  bool written;            /**< Track if variable has been assigned to */
+  bool read;               /**< Track if variable has been read from */
+  struct Symbol *next;     /**< Next symbol in linked list */
 } Symbol;
 
-// Document state
+/**
+ * Document state structure
+ * 
+ * Maintains the current state of an open document, including its text,
+ * parsed AST, and symbol table.
+ */
 typedef struct {
-  char *uri;
-  char *text;
-  Symbol *symbols; // Linked list of symbols
-  AST *ast;
+  char *uri;        /**< Document URI (file path) */
+  char *text;       /**< Full document text */
+  Symbol *symbols;  /**< Linked list of symbols in the document */
+  AST *ast;         /**< Parsed Abstract Syntax Tree */
 } DocumentState;
 
-// Global document state (single file for now)
+/** Global document state (currently supports single file) */
 static DocumentState *g_doc = NULL;
 
-// Helper utilities for JSON parsing
+/**
+ * @section JSON Parsing Utilities
+ * 
+ * Lightweight JSON parsing functions for extracting values from LSP messages.
+ * These functions handle nested objects, arrays, and string escaping.
+ */
+
+/**
+ * @brief Skip whitespace characters
+ * 
+ * @param s String to skip whitespace in
+ * @return Pointer to first non-whitespace character
+ */
 static const char *skip_ws(const char *s) {
   while (s && *s && isspace((unsigned char)*s)) {
     s++;
@@ -65,6 +92,16 @@ static const char *skip_ws(const char *s) {
   return s;
 }
 
+/**
+ * @brief Find the start of a JSON value for a given key
+ * 
+ * Searches for a key-value pair in JSON and returns a pointer to the
+ * start of the value (after the colon).
+ * 
+ * @param json JSON string to search
+ * @param key Key to find
+ * @return Pointer to value start, or NULL if not found
+ */
 static const char *find_value_start(const char *json, const char *key) {
   if (!json || !key)
     return NULL;
@@ -87,6 +124,16 @@ static const char *find_value_start(const char *json, const char *key) {
   return NULL;
 }
 
+/**
+ * @brief Extract a string value from JSON
+ * 
+ * Finds a key in JSON and extracts its string value, handling escape sequences.
+ * The returned string must be freed by the caller.
+ * 
+ * @param json JSON string to parse
+ * @param key Key to look up
+ * @return Extracted string (caller must free), or NULL if not found
+ */
 static char *json_get_string_value(const char *json, const char *key) {
   const char *value_start = find_value_start(json, key);
   if (!value_start || *value_start != '"')
@@ -156,6 +203,16 @@ static char *json_get_string_value(const char *json, const char *key) {
   return result;
 }
 
+/**
+ * @brief Extract an unquoted value from JSON
+ * 
+ * Extracts numeric, boolean, or null values (not strings).
+ * The returned string must be freed by the caller.
+ * 
+ * @param json JSON string to parse
+ * @param key Key to look up
+ * @return Extracted value as string (caller must free), or NULL if not found
+ */
 static char *json_get_unquoted_value(const char *json, const char *key) {
   const char *value_start = find_value_start(json, key);
   if (!value_start || *value_start == '"' || *value_start == '\0')
@@ -179,6 +236,15 @@ static char *json_get_unquoted_value(const char *json, const char *key) {
   return result;
 }
 
+/**
+ * @brief Extract the "id" field from a JSON-RPC message
+ * 
+ * Handles both string and numeric IDs. The returned value is wrapped
+ * in quotes if it was a string, or returned as-is if numeric.
+ * 
+ * @param json JSON-RPC message
+ * @return ID value (caller must free), or NULL if not found
+ */
 static char *json_get_id_value(const char *json) {
   char *string_id = json_get_string_value(json, "id");
   if (string_id) {
@@ -198,8 +264,16 @@ static char *json_get_id_value(const char *json) {
   return json_get_unquoted_value(json, "id");
 }
 
-// Get nested JSON value (e.g., params.position.line or
-// params.contentChanges.0.text)
+/**
+ * @brief Extract a nested JSON value using a dot-separated path
+ * 
+ * Supports paths like "params.position.line" or "params.contentChanges.0.text".
+ * Array indices are specified as numbers in the path.
+ * 
+ * @param json JSON string to parse
+ * @param path Dot-separated path (e.g., "params.textDocument.uri")
+ * @return Extracted value (caller must free), or NULL if not found
+ */
 static char *json_get_nested_value(const char *json, const char *path) {
   if (!json || !path)
     return NULL;
@@ -399,6 +473,22 @@ static char *json_get_nested_value(const char *json, const char *path) {
   }
 }
 
+/**
+ * @section LSP Message Handling
+ * 
+ * Functions for reading and writing JSON-RPC 2.0 messages over stdin/stdout.
+ */
+
+/**
+ * @brief Read a JSON-RPC message from stdin
+ * 
+ * Reads the Content-Length header and then the message body.
+ * The body is allocated and must be freed by the caller.
+ * 
+ * @param out_body Output parameter for message body (caller must free)
+ * @param out_length Output parameter for body length
+ * @return true on success, false on error or EOF
+ */
 static bool read_lsp_message(char **out_body, size_t *out_length) {
   if (!out_body || !out_length)
     return false;
@@ -446,7 +536,15 @@ static bool read_lsp_message(char **out_body, size_t *out_length) {
   return true;
 }
 
-// JSON-escape a string
+/**
+ * @brief Escape special characters in a string for JSON
+ * 
+ * Escapes backslashes, quotes, newlines, tabs, and control characters.
+ * 
+ * @param input String to escape
+ * @param output Output buffer (must be large enough)
+ * @param output_size Size of output buffer
+ */
 static void json_escape(const char *input, char *output, size_t output_size) {
   size_t out_pos = 0;
   for (size_t i = 0; input[i] != '\0' && out_pos < output_size - 1; i++) {
@@ -497,7 +595,14 @@ static void json_escape(const char *input, char *output, size_t output_size) {
   output[out_pos] = '\0';
 }
 
-// JSON-RPC response helpers
+/**
+ * @brief Send a JSON-RPC response
+ * 
+ * Formats and sends a response message to stdout with Content-Length header.
+ * 
+ * @param id Request ID (JSON value, e.g., "1" or "\"abc\"")
+ * @param result Result JSON (can be "null" for void responses)
+ */
 static void send_response(const char *id, const char *result) {
   char buffer[8192];
   int snprintf_result =
@@ -513,6 +618,14 @@ static void send_response(const char *id, const char *result) {
 }
 
 
+/**
+ * @brief Send a JSON-RPC notification (no response expected)
+ * 
+ * Used for sending diagnostics and other notifications to the client.
+ * 
+ * @param method Notification method name (e.g., "textDocument/publishDiagnostics")
+ * @param params Parameters JSON object
+ */
 static void send_notification(const char *method, const char *params) {
   int required_size =
       snprintf(NULL, 0, "{\"jsonrpc\":\"2.0\",\"method\":\"%s\",\"params\":%s}",
@@ -552,6 +665,19 @@ static void send_notification(const char *method, const char *params) {
 
 
 // Free symbol list
+/**
+ * @section Symbol Table Management
+ * 
+ * Functions for building and managing the symbol table from the AST.
+ */
+
+/**
+ * @brief Free a linked list of symbols
+ * 
+ * Recursively frees all symbols and their associated strings.
+ * 
+ * @param sym Head of symbol linked list
+ */
 static void free_symbols(Symbol *sym) {
   while (sym) {
     Symbol *next = sym->next;
@@ -562,7 +688,17 @@ static void free_symbols(Symbol *sym) {
   }
 }
 
-// Helper to estimate position from AST node
+/**
+ * @brief Estimate position from AST node
+ * 
+ * Since AST nodes don't store exact positions, this estimates line/column
+ * based on indentation level. This is approximate but sufficient for
+ * symbol table purposes.
+ * 
+ * @param node AST node
+ * @param line Output parameter for line number (1-based)
+ * @param col Output parameter for column number (1-based)
+ */
 static void get_node_position(ASTNode *node, size_t *line, size_t *col) {
   // Estimate position based on node type and structure
   // This is approximate since AST doesn't store exact positions
@@ -575,7 +711,13 @@ static void get_node_position(ASTNode *node, size_t *line, size_t *col) {
   }
 }
 
-// Free document state
+/**
+ * @brief Free document state and all its resources
+ * 
+ * Releases the URI, text, symbol table, and AST.
+ * 
+ * @param doc Document state to free (safe to pass NULL)
+ */
 static void free_document_state(DocumentState *doc) {
   if (!doc)
     return;
@@ -723,6 +865,16 @@ static void process_statements_for_symbols(ASTNode **statements, size_t count,
 }
 
 // Build symbol table from AST
+/**
+ * @brief Build the complete symbol table for a document
+ * 
+ * Processes the AST to extract all symbols (variables, functions, parameters)
+ * and stores them in the document state. Also tracks symbol usage (read/written).
+ * 
+ * @param doc Document state to populate
+ * @param ast Parsed AST
+ * @param text Source code text
+ */
 static void build_symbol_table(DocumentState *doc, AST *ast,
                                const char *source) {
   if (!doc || !ast)
@@ -3182,7 +3334,25 @@ static void check_diagnostics(const char *uri, const char *text) {
   send_notification("textDocument/publishDiagnostics", diagnostics);
 }
 
-// Handle LSP requests
+/**
+ * @section LSP Request Handlers
+ * 
+ * Functions that handle specific LSP requests from the client.
+ */
+
+/**
+ * @brief Handle initialize request
+ * 
+ * Responds with server capabilities including:
+ * - Text document synchronization
+ * - Completion provider
+ * - Definition provider
+ * - Hover provider
+ * - Document symbols
+ * - Semantic tokens
+ * 
+ * @param id Request ID
+ */
 static void handle_initialize(const char *id) {
   const char *capabilities =
       "{"
@@ -3205,8 +3375,24 @@ static void handle_initialize(const char *id) {
   send_response(id, capabilities);
 }
 
+/**
+ * @brief Handle shutdown request
+ * 
+ * Acknowledges shutdown. The main loop will exit after this.
+ * 
+ * @param id Request ID
+ */
 static void handle_shutdown(const char *id) { send_response(id, "null"); }
 
+/**
+ * @brief Handle textDocument/didOpen notification
+ * 
+ * Called when a document is opened. Parses the document, builds the symbol table,
+ * and sends initial diagnostics.
+ * 
+ * @param uri Document URI
+ * @param text Document text
+ */
 static void handle_did_open(const char *uri, const char *text) {
   // Update or create document state
   if (g_doc) {
@@ -3222,6 +3408,15 @@ static void handle_did_open(const char *uri, const char *text) {
   check_diagnostics(uri, text);
 }
 
+/**
+ * @brief Handle textDocument/didChange notification
+ * 
+ * Called when a document is modified. Updates the document text and
+ * re-runs diagnostics.
+ * 
+ * @param uri Document URI
+ * @param text Updated document text
+ */
 static void handle_did_change(const char *uri, const char *text) {
   // Update document text
   if (g_doc && g_doc->uri && strcmp(g_doc->uri, uri) == 0) {
@@ -3231,7 +3426,14 @@ static void handle_did_change(const char *uri, const char *text) {
   check_diagnostics(uri, text);
 }
 
-// Find symbol by name
+/**
+ * @brief Find a symbol by name in the current document
+ * 
+ * Searches the symbol table for a symbol with the given name.
+ * 
+ * @param name Symbol name to find
+ * @return Symbol pointer, or NULL if not found
+ */
 static Symbol *find_symbol(const char *name) {
   if (!g_doc || !name)
     return NULL;
@@ -3244,7 +3446,17 @@ static Symbol *find_symbol(const char *name) {
   return NULL;
 }
 
-// Find word at position in source
+/**
+ * @brief Extract the word at a given position in source code
+ * 
+ * Finds the identifier (variable/function name) at the specified line and
+ * character position. Handles dots for module.function syntax.
+ * 
+ * @param source Source code text
+ * @param line Line number (0-based)
+ * @param character Character position (0-based)
+ * @return Extracted word (caller must free), or NULL if not found
+ */
 static char *get_word_at_position(const char *source, size_t line,
                                   size_t character) {
   if (!source)
@@ -3308,7 +3520,15 @@ static char *get_word_at_position(const char *source, size_t line,
   return word;
 }
 
-// Handle go-to-definition
+/**
+ * @brief Handle textDocument/definition request (go-to-definition)
+ * 
+ * Finds the definition location of a symbol at the requested position.
+ * Returns the file URI and position of the definition.
+ * 
+ * @param id Request ID
+ * @param body Request body JSON
+ */
 static void handle_definition(const char *id, const char *body) {
   if (!g_doc || !g_doc->text) {
     send_response(id, "null");
@@ -3389,6 +3609,15 @@ static const char *get_module_description(const char *module_name) {
 }
 
 // Handle hover
+/**
+ * @brief Handle textDocument/hover request
+ * 
+ * Provides hover information for a symbol at the requested position.
+ * Returns type information, documentation, and whether the symbol is mutable.
+ * 
+ * @param id Request ID
+ * @param body Request body JSON
+ */
 static void handle_hover(const char *id, const char *body) {
   if (!g_doc || !g_doc->text) {
     send_response(id, "null");
@@ -3553,6 +3782,14 @@ static void handle_hover(const char *id, const char *body) {
 }
 
 // Handle document symbols
+/**
+ * @brief Handle textDocument/documentSymbol request
+ * 
+ * Returns all symbols in the document for the outline view.
+ * Includes variables, functions, and their hierarchical structure.
+ * 
+ * @param id Request ID
+ */
 static void handle_document_symbols(const char *id) {
   if (!g_doc || !g_doc->symbols) {
     send_response(id, "[]");
@@ -3599,6 +3836,15 @@ static void handle_document_symbols(const char *id) {
 }
 
 // Handle semantic tokens request
+/**
+ * @brief Handle textDocument/semanticTokens/full request
+ * 
+ * Returns semantic token information for syntax highlighting.
+ * Identifies variables, functions, and parameters with their modifiers
+ * (unused, readonly).
+ * 
+ * @param id Request ID
+ */
 static void handle_semantic_tokens(const char *id) {
   if (!g_doc || !g_doc->text || !g_doc->symbols)
     return send_response(id, "{\"data\":[]}");
@@ -3733,6 +3979,16 @@ static void handle_semantic_tokens(const char *id) {
 }
 
 // Handle completion with context awareness
+/**
+ * @brief Handle textDocument/completion request
+ * 
+ * Provides code completion suggestions at the requested position.
+ * Returns keywords, built-in functions, variables, and functions from
+ * the current scope.
+ * 
+ * @param id Request ID
+ * @param body Request body JSON
+ */
 static void handle_completion(const char *id, const char *body) {
   (void)body; // Unused parameter
   // Build completion list with keywords, built-ins, and symbols
@@ -3865,7 +4121,25 @@ static void handle_completion(const char *id, const char *body) {
   send_response(id, completions);
 }
 
-// Main LSP loop
+/**
+ * @brief Main LSP server loop
+ * 
+ * Reads JSON-RPC messages from stdin and dispatches them to appropriate handlers.
+ * Continues until shutdown request is received.
+ * 
+ * Supported methods:
+ * - initialize: Server initialization
+ * - shutdown: Server shutdown
+ * - textDocument/didOpen: Document opened
+ * - textDocument/didChange: Document changed
+ * - textDocument/completion: Code completion
+ * - textDocument/definition: Go to definition
+ * - textDocument/hover: Hover information
+ * - textDocument/documentSymbol: Document outline
+ * - textDocument/semanticTokens/full: Semantic highlighting
+ * 
+ * @return 0 on normal exit
+ */
 int main(void) {
   fprintf(stderr, "Kronos LSP Server starting...\n");
 

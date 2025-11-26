@@ -1,3 +1,17 @@
+/**
+ * @file vm.c
+ * @brief Virtual machine for executing Kronos bytecode
+ * 
+ * Implements a stack-based virtual machine that executes compiled bytecode.
+ * Features:
+ * - Stack-based execution model
+ * - Global and local variable management
+ * - Function call stack with local scoping
+ * - Built-in functions (math, string operations, list operations)
+ * - Error handling and reporting
+ * - Break/continue support in loops
+ */
+
 #define _POSIX_C_SOURCE 200809L
 #include "vm.h"
 #include <ctype.h>
@@ -8,6 +22,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Finalize error state in the VM
+ * 
+ * Internal helper to set error code and message, and invoke error callback.
+ * 
+ * @param vm VM instance
+ * @param code Error code
+ * @param owned_message Error message (will be owned by VM, can be NULL)
+ * @param fallback_msg Fallback message if owned_message is NULL
+ */
 static void vm_finalize_error(KronosVM *vm, KronosErrorCode code,
                               char *owned_message, const char *fallback_msg) {
   if (!vm)
@@ -90,7 +114,14 @@ static int vm_propagate_error(KronosVM *vm, KronosErrorCode fallback) {
   return code == KRONOS_OK ? -(int)fallback : -(int)code;
 }
 
-// Create new VM
+/**
+ * @brief Create a new virtual machine instance
+ * 
+ * Initializes a VM with empty stack, no globals, and the built-in Pi constant.
+ * The VM is ready to execute bytecode after creation.
+ * 
+ * @return New VM instance, or NULL on allocation failure
+ */
 KronosVM *vm_new(void) {
   KronosVM *vm = malloc(sizeof(KronosVM));
   if (!vm)
@@ -146,7 +177,14 @@ KronosVM *vm_new(void) {
   return vm;
 }
 
-// Free VM
+/**
+ * @brief Free a VM instance and all its resources
+ * 
+ * Releases all values on the stack, call frames, global variables,
+ * and functions. After calling this, the VM pointer should not be used.
+ * 
+ * @param vm VM instance to free (safe to pass NULL)
+ */
 void vm_free(KronosVM *vm) {
   if (!vm)
     return;
@@ -231,7 +269,14 @@ Function *vm_get_function(KronosVM *vm, const char *name) {
   return NULL;
 }
 
-// Stack operations
+/**
+ * @brief Push a value onto the VM stack
+ * 
+ * Retains the value while it's on the stack. Fails if stack overflow occurs.
+ * 
+ * @param vm VM instance
+ * @param value Value to push (will be retained)
+ */
 static void push(KronosVM *vm, KronosValue *value) {
   if (vm->stack_top >= vm->stack + STACK_MAX) {
     vm_set_errorf(vm, KRONOS_ERR_RUNTIME,
@@ -243,6 +288,15 @@ static void push(KronosVM *vm, KronosValue *value) {
   value_retain(value); // Retain while on stack
 }
 
+/**
+ * @brief Pop a value from the VM stack
+ * 
+ * Returns the value without releasing it (caller must handle reference counting).
+ * Fails if stack underflow occurs.
+ * 
+ * @param vm VM instance
+ * @return Popped value, or NULL on underflow
+ */
 static KronosValue *pop(KronosVM *vm) {
   if (vm->stack_top <= vm->stack) {
     vm_set_error(vm, KRONOS_ERR_RUNTIME,
@@ -279,7 +333,19 @@ static KronosValue *peek(KronosVM *vm, int distance) {
   return vm->stack_top[-1 - distance];
 }
 
-// Global variable management
+/**
+ * @brief Set or create a global variable
+ * 
+ * Creates a new global variable or updates an existing mutable one.
+ * Enforces immutability and type checking if type_name was specified.
+ * 
+ * @param vm VM instance
+ * @param name Variable name
+ * @param value Value to assign (will be retained by VM)
+ * @param is_mutable Whether the variable can be reassigned
+ * @param type_name Optional type annotation (e.g., "number", "string")
+ * @return 0 on success, negative error code on failure
+ */
 int vm_set_global(KronosVM *vm, const char *name, KronosValue *value,
                   bool is_mutable, const char *type_name) {
   if (!vm || !name || !value) {
@@ -540,6 +606,22 @@ static char *value_to_string_repr(KronosValue *val) {
 }
 
 // Execute bytecode
+/**
+ * @brief Execute bytecode on the virtual machine
+ * 
+ * Main execution loop. Reads instructions from bytecode and executes them
+ * using a stack-based model. Handles all instruction types including:
+ * - Stack operations (push, pop)
+ * - Variable operations (load, store)
+ * - Arithmetic and comparison operations
+ * - Control flow (jumps, conditionals)
+ * - Function calls and returns
+ * - Built-in function invocations
+ * 
+ * @param vm VM instance to execute on
+ * @param bytecode Compiled bytecode to execute
+ * @return 0 on success, negative error code on failure
+ */
 int vm_execute(KronosVM *vm, Bytecode *bytecode) {
   if (!vm) {
     return -(int)KRONOS_ERR_INVALID_ARGUMENT;

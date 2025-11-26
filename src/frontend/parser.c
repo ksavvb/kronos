@@ -1,15 +1,38 @@
+/**
+ * @file parser.c
+ * @brief Parser for Kronos source code
+ * 
+ * Implements recursive descent parsing to build an Abstract Syntax Tree (AST)
+ * from tokens. Handles all Kronos language constructs:
+ * - Expressions (arithmetic, comparisons, logical operators)
+ * - Statements (assignments, conditionals, loops, functions)
+ * - Control flow (if/else, for, while, break, continue)
+ * - Data structures (lists, indexing, slicing)
+ * - F-strings with embedded expressions
+ */
+
 #define _POSIX_C_SOURCE 200809L
 #include "parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * Parser state structure
+ * Tracks current position in the token stream
+ */
 typedef struct {
-  TokenArray *tokens;
-  size_t pos;
+  TokenArray *tokens;  /**< Array of tokens to parse */
+  size_t pos;          /**< Current position in token array */
 } Parser;
 
-// Helper functions
+/**
+ * @brief Look ahead at a token without consuming it
+ * 
+ * @param p Parser state
+ * @param offset How many tokens ahead to look (0 = current token)
+ * @return Token pointer, or NULL if out of bounds
+ */
 static Token *peek(Parser *p, int offset) {
   size_t idx = p->pos + offset;
   if (idx >= p->tokens->count)
@@ -17,6 +40,16 @@ static Token *peek(Parser *p, int offset) {
   return &p->tokens->tokens[idx];
 }
 
+/**
+ * @brief Consume a token of the expected type
+ * 
+ * Advances the parser position if the current token matches the expected type.
+ * Reports an error if the token doesn't match.
+ * 
+ * @param p Parser state
+ * @param expected Expected token type
+ * @return Token pointer on success, NULL on mismatch or end of input
+ */
 static Token *consume(Parser *p, TokenType expected) {
   if (p->pos >= p->tokens->count) {
     fprintf(stderr, "Unexpected end of input\n");
@@ -33,13 +66,19 @@ static Token *consume(Parser *p, TokenType expected) {
   return tok;
 }
 
+/**
+ * @brief Consume any token (advance parser position)
+ * 
+ * @param p Parser state
+ * @return Token pointer, or NULL if at end of input
+ */
 static Token *consume_any(Parser *p) {
   if (p->pos >= p->tokens->count)
     return NULL;
   return &p->tokens->tokens[p->pos++];
 }
 
-// Forward declarations
+// Forward declarations for recursive parsing functions
 static ASTNode *parse_expression(Parser *p);
 static ASTNode *parse_condition(Parser *p);
 static ASTNode **parse_block(Parser *p, int parent_indent, size_t *block_size);
@@ -76,7 +115,15 @@ static ASTNode *ast_node_new_checked(ASTNodeType type) {
   return node;
 }
 
-// Parse value (number, string, variable, boolean, null)
+/**
+ * @brief Parse a value (literal or variable reference)
+ * 
+ * Handles: numbers, strings, f-strings, booleans, null, variables,
+ * list literals, and function calls (when used as expressions).
+ * 
+ * @param p Parser state
+ * @return AST node, or NULL on error
+ */
 static ASTNode *parse_value(Parser *p) {
   Token *tok = peek(p, 0);
   if (!tok)
@@ -157,7 +204,15 @@ static ASTNode *parse_value(Parser *p) {
   return NULL;
 }
 
-// Get operator precedence (higher number = tighter binding)
+/**
+ * @brief Get operator precedence for expression parsing
+ * 
+ * Higher numbers indicate tighter binding (higher precedence).
+ * Used by the Pratt parser to correctly handle operator associativity.
+ * 
+ * @param type Token type to check
+ * @return Precedence value (0 if not a binary operator)
+ */
 static int get_precedence(TokenType type) {
   switch (type) {
   case TOK_OR:
@@ -175,7 +230,22 @@ static int get_precedence(TokenType type) {
   }
 }
 
-// Attempt to parse natural-language comparison operators starting with "is"
+/**
+ * @brief Match natural-language comparison operators
+ * 
+ * Handles Kronos's natural-language comparisons:
+ * - "is equal" or "is equal to" -> ==
+ * - "is not equal" -> !=
+ * - "is greater than" -> >
+ * - "is less than" -> <
+ * - "is greater than or equal" -> >=
+ * - "is less than or equal" -> <=
+ * 
+ * @param p Parser state
+ * @param out_op Output parameter for the binary operator type
+ * @param tokens_to_consume Output parameter for number of tokens to consume
+ * @return true if a comparison operator was matched
+ */
 static bool match_comparison_operator(Parser *p, BinOp *out_op,
                                       size_t *tokens_to_consume) {
   Token *current = peek(p, 0);
@@ -233,7 +303,15 @@ static bool match_comparison_operator(Parser *p, BinOp *out_op,
   return true;
 }
 
-// Parse list literal: list 1, 2, 3 or list (empty)
+/**
+ * @brief Parse a list literal
+ * 
+ * Handles: "list 1, 2, 3" or "list" (empty list).
+ * Elements are comma-separated expressions.
+ * 
+ * @param p Parser state
+ * @return AST node for the list, or NULL on error
+ */
 static ASTNode *parse_list_literal(Parser *p) {
   consume(p, TOK_LIST);
 
@@ -308,7 +386,16 @@ static ASTNode *parse_list_literal(Parser *p) {
   return node;
 }
 
-// Parse f-string: f"text {expr} more text"
+/**
+ * @brief Parse an f-string with embedded expressions
+ * 
+ * F-strings allow embedding expressions: f"Hello {name}".
+ * Handles nested braces and escape sequences. Each expression
+ * is tokenized and parsed separately.
+ * 
+ * @param p Parser state
+ * @return AST node for the f-string, or NULL on error
+ */
 static ASTNode *parse_fstring(Parser *p) {
   Token *tok = consume(p, TOK_FSTRING);
   if (!tok)
@@ -500,8 +587,16 @@ static ASTNode *parse_fstring(Parser *p) {
   return node;
 }
 
-// Parse primary expression (values, list literals, variables)
-// Then handle postfix operations (indexing, slicing)
+/**
+ * @brief Parse a primary expression with postfix operations
+ * 
+ * Parses values, then handles postfix operations:
+ * - Indexing: "list at 0"
+ * - Slicing: "list from 1 to 5" or "list from 1 to end"
+ * 
+ * @param p Parser state
+ * @return AST node, or NULL on error
+ */
 static ASTNode *parse_primary(Parser *p) {
   ASTNode *expr = parse_value(p);
   if (!expr)
@@ -570,7 +665,16 @@ static ASTNode *parse_primary(Parser *p) {
   return expr;
 }
 
-// Parse expression with precedence-climbing (Pratt parser)
+/**
+ * @brief Parse an expression using precedence-climbing (Pratt parser)
+ * 
+ * Recursively parses expressions respecting operator precedence and associativity.
+ * Handles unary operators (NOT) and binary operators (arithmetic, comparisons, logical).
+ * 
+ * @param p Parser state
+ * @param min_prec Minimum precedence to parse (stops when encountering lower precedence)
+ * @return AST node for the expression, or NULL on error
+ */
 static ASTNode *parse_expression_prec(Parser *p, int min_prec) {
   // Handle unary NOT operator (prefix)
   ASTNode *left = NULL;
@@ -690,20 +794,42 @@ static ASTNode *parse_expression_prec(Parser *p, int min_prec) {
   return left;
 }
 
-// Parse expression (with binary operators and precedence)
+/**
+ * @brief Parse an expression (entry point)
+ * 
+ * Starts precedence-climbing parsing with minimum precedence.
+ * 
+ * @param p Parser state
+ * @return AST node for the expression, or NULL on error
+ */
 static ASTNode *parse_expression(Parser *p) {
   return parse_expression_prec(p, 1); // Start with minimum precedence
 }
 
-// Parse condition (for if/while) - can be a comparison or a full expression
-// with logical operators
+/**
+ * @brief Parse a condition for if/while statements
+ * 
+ * Conditions are full expressions (can include comparisons and logical operators).
+ * 
+ * @param p Parser state
+ * @return AST node for the condition, or NULL on error
+ */
 static ASTNode *parse_condition(Parser *p) {
   // Parse as a full expression - the expression parser now handles comparisons
   // with "is"
   return parse_expression(p);
 }
 
-// Parse assignment
+/**
+ * @brief Parse a variable assignment statement
+ * 
+ * Handles: "set x to 10" (immutable) or "let x to 10" (mutable).
+ * Supports optional type annotations: "set x to 10 as number".
+ * 
+ * @param p Parser state
+ * @param indent Indentation level of this statement
+ * @return AST node for the assignment, or NULL on error
+ */
 static ASTNode *parse_assignment(Parser *p, int indent) {
   Token *first = peek(p, 0);
   bool is_mutable = (first->type == TOK_LET);
@@ -789,7 +915,17 @@ static ASTNode *parse_print(Parser *p, int indent) {
   return node;
 }
 
-// Parse block (indented statements)
+/**
+ * @brief Parse a block of indented statements
+ * 
+ * Collects all statements with indentation greater than parent_indent.
+ * Used for if/for/while bodies and function bodies.
+ * 
+ * @param p Parser state
+ * @param parent_indent Indentation level of the parent statement
+ * @param block_size Output parameter for number of statements in block
+ * @return Array of AST nodes, or NULL on error
+ */
 static ASTNode **parse_block(Parser *p, int parent_indent, size_t *block_size) {
   if (block_size)
     *block_size = 0;
@@ -1493,7 +1629,16 @@ static ASTNode *parse_statement(Parser *p) {
   }
 }
 
-// Parse tokens into AST
+/**
+ * @brief Parse tokens into an Abstract Syntax Tree
+ * 
+ * Main entry point for parsing. Processes all statements in the token stream
+ * and builds a complete AST. Handles errors gracefully by skipping to the
+ * next line on parse failures.
+ * 
+ * @param tokens Token array to parse
+ * @return AST containing all statements, or NULL on critical error
+ */
 AST *parse(TokenArray *tokens) {
   Parser p = {tokens, 0};
 
@@ -1539,7 +1684,14 @@ AST *parse(TokenArray *tokens) {
   return ast;
 }
 
-// Free AST node
+/**
+ * @brief Free an AST node and all its children
+ * 
+ * Recursively frees all memory associated with the node, including
+ * strings, arrays, and child nodes.
+ * 
+ * @param node Node to free (safe to pass NULL)
+ */
 void ast_node_free(ASTNode *node) {
   if (!node)
     return;
@@ -1667,7 +1819,11 @@ void ast_node_free(ASTNode *node) {
   free(node);
 }
 
-// Free AST
+/**
+ * @brief Free an AST and all its statements
+ * 
+ * @param ast AST to free (safe to pass NULL)
+ */
 void ast_free(AST *ast) {
   if (!ast)
     return;
