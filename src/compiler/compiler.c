@@ -555,8 +555,8 @@ static void compile_expression(Compiler *c, ASTNode *node) {
       // Implicit end (to end): push -1 as marker
       KronosValue *end_marker = value_new_number(-1);
       size_t end_idx = add_constant(c, end_marker);
-      value_release(end_marker);
       if (end_idx == SIZE_MAX || end_idx > UINT16_MAX) {
+        value_release(end_marker);
         return;
       }
       emit_byte(c, OP_LOAD_CONST);
@@ -795,6 +795,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
         compile_statement(c, node->as.if_stmt.else_if_blocks[i][j]);
         if (compiler_has_error(c)) {
           free(jump_positions);
+          free(skip_jumps);
           return;
         }
       }
@@ -806,6 +807,7 @@ static void compile_statement(Compiler *c, ASTNode *node) {
         if (!new_skips) {
           compiler_set_error(c, "Failed to allocate skip jumps array");
           free(jump_positions);
+          free(skip_jumps);
           return;
         }
         skip_jumps = new_skips;
@@ -1236,6 +1238,8 @@ static void compile_statement(Compiler *c, ASTNode *node) {
         (uint8_t)(exit_target - exit_jump_pos - 1);
     if (c->loop_stack) {
       c->loop_stack->loop_end = exit_target;
+      // Patch all pending break/continue jumps
+      patch_pending_jumps(c);
     }
 
     // Pop loop info
