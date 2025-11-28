@@ -27,13 +27,13 @@
  * Must match TokenType enum order exactly
  */
 static const char *token_type_names[] = {
-    "NUMBER", "STRING",  "FSTRING",   "SET",  "LET",   "TO",     "AS",
-    "IF",     "FOR",     "WHILE",     "IN",   "RANGE", "LIST",   "AT",
-    "FROM",   "END",     "FUNCTION",  "WITH", "CALL",  "RETURN", "TRUE",
-    "FALSE",  "NULL",    "UNDEFINED", "IS",   "EQUAL", "NOT",    "GREATER",
-    "LESS",   "THAN",    "AND",       "OR",   "PRINT", "PLUS",   "MINUS",
-    "TIMES",  "DIVIDED", "BY",        "NAME", "COLON", "COMMA",  "NEWLINE",
-    "INDENT", "EOF"};
+    "NUMBER",    "STRING", "FSTRING", "SET",    "LET",     "TO",     "AS",
+    "IF",        "ELSE",   "ELSE_IF", "FOR",    "WHILE",   "BREAK",  "CONTINUE",
+    "IN",        "RANGE",  "LIST",    "AT",     "FROM",    "END",    "FUNCTION",
+    "WITH",      "CALL",   "RETURN",  "IMPORT", "TRUE",    "FALSE",  "NULL",
+    "UNDEFINED", "IS",     "EQUAL",   "NOT",    "GREATER", "LESS",   "THAN",
+    "AND",       "OR",     "PRINT",   "PLUS",   "MINUS",   "TIMES",  "DIVIDED",
+    "BY",        "NAME",   "COLON",   "COMMA",  "NEWLINE", "INDENT", "EOF"};
 
 /**
  * @brief Allocate and initialize a new token array
