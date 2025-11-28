@@ -84,6 +84,117 @@ TEST(tokenize_float_number) {
 }
 
 /**
+ * @brief Test tokenization of negative integer literals
+ *
+ * Verifies that negative numbers like -42 are tokenized as a single NUMBER
+ * token, not as a separate minus operator and number.
+ */
+TEST(tokenize_negative_integer) {
+  TokenizeError *err = NULL;
+  TokenArray *tokens = tokenize("-42", &err);
+
+  ASSERT_PTR_NULL(err);
+  ASSERT_PTR_NOT_NULL(tokens);
+  ASSERT_TRUE(tokens->count >= 2);
+
+  // Skip INDENT token, find NUMBER
+  size_t i = 0;
+  while (i < tokens->count && (tokens->tokens[i].type == TOK_INDENT ||
+                               tokens->tokens[i].type == TOK_NEWLINE)) {
+    i++;
+  }
+  ASSERT_TRUE(i < tokens->count);
+  ASSERT_INT_EQ(tokens->tokens[i].type, TOK_NUMBER);
+  ASSERT_STR_EQ(tokens->tokens[i].text, "-42");
+
+  token_array_free(tokens);
+}
+
+/**
+ * @brief Test tokenization of positive integer literals with explicit sign
+ *
+ * Verifies that positive numbers with explicit + sign are tokenized correctly.
+ */
+TEST(tokenize_positive_integer) {
+  TokenizeError *err = NULL;
+  TokenArray *tokens = tokenize("+42", &err);
+
+  ASSERT_PTR_NULL(err);
+  ASSERT_PTR_NOT_NULL(tokens);
+  ASSERT_TRUE(tokens->count >= 2);
+
+  // Skip INDENT token, find NUMBER
+  size_t i = 0;
+  while (i < tokens->count && (tokens->tokens[i].type == TOK_INDENT ||
+                               tokens->tokens[i].type == TOK_NEWLINE)) {
+    i++;
+  }
+  ASSERT_TRUE(i < tokens->count);
+  ASSERT_INT_EQ(tokens->tokens[i].type, TOK_NUMBER);
+  ASSERT_STR_EQ(tokens->tokens[i].text, "+42");
+
+  token_array_free(tokens);
+}
+
+/**
+ * @brief Test tokenization of negative floating-point literals
+ *
+ * Verifies that negative decimal numbers like -3.14 are tokenized as a single
+ * NUMBER token.
+ */
+TEST(tokenize_negative_float) {
+  TokenizeError *err = NULL;
+  TokenArray *tokens = tokenize("-3.14", &err);
+
+  ASSERT_PTR_NULL(err);
+  ASSERT_PTR_NOT_NULL(tokens);
+  ASSERT_TRUE(tokens->count >= 2);
+
+  // Skip INDENT token, find NUMBER
+  size_t i = 0;
+  while (i < tokens->count && (tokens->tokens[i].type == TOK_INDENT ||
+                               tokens->tokens[i].type == TOK_NEWLINE)) {
+    i++;
+  }
+  ASSERT_TRUE(i < tokens->count);
+  ASSERT_INT_EQ(tokens->tokens[i].type, TOK_NUMBER);
+  ASSERT_STR_EQ(tokens->tokens[i].text, "-3.14");
+
+  token_array_free(tokens);
+}
+
+/**
+ * @brief Test that minus operator is still separate when not followed by digit
+ *
+ * Verifies that '-' is not consumed as part of a number when it's not
+ * immediately followed by a digit (e.g., in expressions like "x minus y").
+ */
+TEST(tokenize_minus_operator_separate) {
+  TokenizeError *err = NULL;
+  // Test that "minus" keyword is still recognized separately
+  TokenArray *tokens = tokenize("x minus 5", &err);
+
+  ASSERT_PTR_NULL(err);
+  ASSERT_PTR_NOT_NULL(tokens);
+  ASSERT_TRUE(tokens->count >= 4);
+
+  // Skip INDENT token, find tokens
+  size_t i = 0;
+  while (i < tokens->count && (tokens->tokens[i].type == TOK_INDENT ||
+                               tokens->tokens[i].type == TOK_NEWLINE)) {
+    i++;
+  }
+  ASSERT_TRUE(i + 2 < tokens->count);
+  ASSERT_INT_EQ(tokens->tokens[i].type, TOK_NAME);
+  ASSERT_STR_EQ(tokens->tokens[i].text, "x");
+  ASSERT_INT_EQ(tokens->tokens[i + 1].type, TOK_MINUS);
+  ASSERT_INT_EQ(tokens->tokens[i + 2].type, TOK_NUMBER);
+  ASSERT_STR_EQ(tokens->tokens[i + 2].text, "5");
+
+  token_array_free(tokens);
+}
+
+/**
  * @brief Test tokenization of string literals
  *
  * Verifies that quoted strings are correctly extracted (quotes are stripped).
