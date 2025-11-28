@@ -1,7 +1,7 @@
 /**
  * @file vm.c
  * @brief Virtual machine for executing Kronos bytecode
- * 
+ *
  * Implements a stack-based virtual machine that executes compiled bytecode.
  * Features:
  * - Stack-based execution model
@@ -16,17 +16,19 @@
 #include "vm.h"
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /**
  * @brief Finalize error state in the VM
- * 
+ *
  * Internal helper to set error code and message, and invoke error callback.
- * 
+ *
  * @param vm VM instance
  * @param code Error code
  * @param owned_message Error message (will be owned by VM, can be NULL)
@@ -116,10 +118,10 @@ static int vm_propagate_error(KronosVM *vm, KronosErrorCode fallback) {
 
 /**
  * @brief Create a new virtual machine instance
- * 
+ *
  * Initializes a VM with empty stack, no globals, and the built-in Pi constant.
  * The VM is ready to execute bytecode after creation.
- * 
+ *
  * @return New VM instance, or NULL on allocation failure
  */
 KronosVM *vm_new(void) {
@@ -179,10 +181,10 @@ KronosVM *vm_new(void) {
 
 /**
  * @brief Free a VM instance and all its resources
- * 
+ *
  * Releases all values on the stack, call frames, global variables,
  * and functions. After calling this, the VM pointer should not be used.
- * 
+ *
  * @param vm VM instance to free (safe to pass NULL)
  */
 void vm_free(KronosVM *vm) {
@@ -271,9 +273,9 @@ Function *vm_get_function(KronosVM *vm, const char *name) {
 
 /**
  * @brief Push a value onto the VM stack
- * 
+ *
  * Retains the value while it's on the stack. Fails if stack overflow occurs.
- * 
+ *
  * @param vm VM instance
  * @param value Value to push (will be retained)
  */
@@ -290,10 +292,10 @@ static void push(KronosVM *vm, KronosValue *value) {
 
 /**
  * @brief Pop a value from the VM stack
- * 
- * Returns the value without releasing it (caller must handle reference counting).
- * Fails if stack underflow occurs.
- * 
+ *
+ * Returns the value without releasing it (caller must handle reference
+ * counting). Fails if stack underflow occurs.
+ *
  * @param vm VM instance
  * @return Popped value, or NULL on underflow
  */
@@ -335,10 +337,10 @@ static KronosValue *peek(KronosVM *vm, int distance) {
 
 /**
  * @brief Set or create a global variable
- * 
+ *
  * Creates a new global variable or updates an existing mutable one.
  * Enforces immutability and type checking if type_name was specified.
- * 
+ *
  * @param vm VM instance
  * @param name Variable name
  * @param value Value to assign (will be retained by VM)
@@ -608,7 +610,7 @@ static char *value_to_string_repr(KronosValue *val) {
 // Execute bytecode
 /**
  * @brief Execute bytecode on the virtual machine
- * 
+ *
  * Main execution loop. Reads instructions from bytecode and executes them
  * using a stack-based model. Handles all instruction types including:
  * - Stack operations (push, pop)
@@ -617,7 +619,7 @@ static char *value_to_string_repr(KronosValue *val) {
  * - Control flow (jumps, conditionals)
  * - Function calls and returns
  * - Built-in function invocations
- * 
+ *
  * @param vm VM instance to execute on
  * @param bytecode Compiled bytecode to execute
  * @return 0 on success, negative error code on failure
@@ -1363,9 +1365,10 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
           // Continue to built-in function checks below with actual_func_name
           func_name = actual_func_name;
         } else {
+          int err = vm_errorf(vm, KRONOS_ERR_NOT_FOUND, "Unknown module '%s'",
+                              module_name);
           free(module_name);
-          return vm_errorf(vm, KRONOS_ERR_NOT_FOUND, "Unknown module '%s'",
-                           module_name);
+          return err;
         }
       }
 
@@ -2133,12 +2136,43 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
         }
 
         // Calculate maximum possible result size
-        size_t max_result_len = str->as.string.length;
-        if (new_str->as.string.length > old_str->as.string.length) {
-          // Worst case: every character is replaced
-          max_result_len = (str->as.string.length / old_str->as.string.length) *
-                               new_str->as.string.length +
-                           (str->as.string.length % old_str->as.string.length);
+        // old_len == 0 is already handled above, so we know old_len > 0 here
+        size_t str_len = str->as.string.length;
+        size_t old_len = old_str->as.string.length;
+        size_t new_len = new_str->as.string.length;
+        size_t max_result_len = str_len;
+
+        if (new_len > old_len) {
+          // Worst case: maximum non-overlapping occurrences
+          // Maximum occurrences is at most str_len / old_len
+          // Each occurrence adds (new_len - old_len) characters
+          // Safe upper bound: str_len + (str_len / old_len + 1) * (new_len -
+          // old_len) But we need to check for overflow
+          size_t max_occurrences = str_len / old_len;
+          size_t growth_per_occurrence = new_len - old_len;
+
+          // Check for overflow: max_occurrences * growth_per_occurrence
+          if (max_occurrences > 0 &&
+              growth_per_occurrence > SIZE_MAX / max_occurrences) {
+            // Overflow would occur, use a conservative upper bound
+            max_result_len = SIZE_MAX;
+          } else {
+            size_t total_growth = max_occurrences * growth_per_occurrence;
+            // Check if str_len + total_growth would overflow
+            if (total_growth > SIZE_MAX - str_len) {
+              max_result_len = SIZE_MAX;
+            } else {
+              max_result_len = str_len + total_growth;
+            }
+          }
+        }
+
+        // Check for overflow before malloc (max_result_len + 1)
+        if (max_result_len == SIZE_MAX || max_result_len + 1 < max_result_len) {
+          value_release(str);
+          value_release(old_str);
+          value_release(new_str);
+          return vm_error(vm, KRONOS_ERR_INTERNAL, "Result string too large");
         }
 
         char *result_buf = malloc(max_result_len + 1);
