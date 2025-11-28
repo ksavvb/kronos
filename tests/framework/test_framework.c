@@ -91,17 +91,28 @@ void test_fail(const char *file, int line, const char *message) {
   // Look for the most recent test result with this name
   for (size_t i = g_test_suite->count; i > 0; i--) {
     TestResult *result = &g_test_suite->results[i - 1];
-    if (result->name == test_name && result->passed) {
-      // Mark this test as failed
-      result->passed = false;
-      result->file = file;
-      result->line = line;
-      if (result->message != NULL) {
-        free((void *)result->message);
+    if (result->name == test_name) {
+      if (result->passed) {
+        // First failure: transition from passed to failed
+        result->passed = false;
+        result->file = file;
+        result->line = line;
+        if (result->message != NULL) {
+          free((void *)result->message);
+        }
+        result->message = strdup(message);
+        g_test_suite->failed++;
+        g_test_suite->passed--; // Decrement passed count
+      } else {
+        // Subsequent failure: just update the failure info without changing
+        // counts
+        result->file = file;
+        result->line = line;
+        if (result->message != NULL) {
+          free((void *)result->message);
+        }
+        result->message = strdup(message);
       }
-      result->message = strdup(message);
-      g_test_suite->failed++;
-      g_test_suite->passed--; // Decrement passed count
       return;
     }
   }
