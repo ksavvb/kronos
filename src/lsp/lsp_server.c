@@ -3963,18 +3963,34 @@ static void handle_semantic_tokens(const char *id) {
     int delta_line = (int)line - 1 - prev_line;
     int delta_col = delta_line == 0 ? (int)name_col - prev_col : (int)name_col;
 
-    if (!first)
-      pos += snprintf(tokens + pos, remaining - pos, ",");
+    if (!first) {
+      int written = snprintf(tokens + pos, remaining - pos, ",");
+      if (written > 0 && (size_t)written < remaining - pos) {
+        pos += (size_t)written;
+        remaining -= (size_t)written;
+      } else {
+        break; // Buffer full
+      }
+    }
     first = false;
 
-    pos += snprintf(tokens + pos, remaining - pos, "%d,%d,%zu,%d,%d",
-                    delta_line, delta_col, strlen(sym->name), token_type, token_modifiers);
+    int written = snprintf(tokens + pos, remaining - pos, "%d,%d,%zu,%d,%d",
+                           delta_line, delta_col, strlen(sym->name), token_type, token_modifiers);
+    if (written > 0 && (size_t)written < remaining - pos) {
+      pos += (size_t)written;
+      remaining -= (size_t)written;
+    } else {
+      break; // Buffer full
+    }
 
     prev_line = (int)line - 1;
     prev_col = (int)name_col;
   }
 
-  pos += snprintf(tokens + pos, remaining - pos, "]}");
+  int written = snprintf(tokens + pos, remaining - pos, "]}");
+  if (written > 0 && (size_t)written < remaining - pos) {
+    pos += (size_t)written;
+  }
   send_response(id, tokens);
 }
 
@@ -4031,16 +4047,29 @@ static void handle_completion(const char *id, const char *body) {
   };
 
   for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
-    if (!first)
-      pos += snprintf(completions + pos, remaining - pos, ",");
+    if (!first) {
+      int written = snprintf(completions + pos, remaining - pos, ",");
+      if (written > 0 && (size_t)written < remaining - pos) {
+        pos += (size_t)written;
+        remaining -= (size_t)written;
+      } else {
+        break; // Buffer full
+      }
+    }
     first = false;
     char escaped[256];
     json_escape(keywords[i][0], escaped, sizeof(escaped));
     char escaped_detail[256];
     json_escape(keywords[i][1], escaped_detail, sizeof(escaped_detail));
-    pos += snprintf(completions + pos, remaining - pos,
-                    "{\"label\":\"%s\",\"kind\":14,\"detail\":\"%s\"}", escaped,
-                    escaped_detail);
+    int written = snprintf(completions + pos, remaining - pos,
+                           "{\"label\":\"%s\",\"kind\":14,\"detail\":\"%s\"}", escaped,
+                           escaped_detail);
+    if (written > 0 && (size_t)written < remaining - pos) {
+      pos += (size_t)written;
+      remaining -= (size_t)written;
+    } else {
+      break; // Buffer full
+    }
   }
 
   // Add built-in functions
@@ -4072,16 +4101,29 @@ static void handle_completion(const char *id, const char *body) {
   };
 
   for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
-    if (!first)
-      pos += snprintf(completions + pos, remaining - pos, ",");
+    if (!first) {
+      int written = snprintf(completions + pos, remaining - pos, ",");
+      if (written > 0 && (size_t)written < remaining - pos) {
+        pos += (size_t)written;
+        remaining -= (size_t)written;
+      } else {
+        break; // Buffer full
+      }
+    }
     first = false;
     char escaped[256];
     json_escape(builtins[i][0], escaped, sizeof(escaped));
     char escaped_detail[256];
     json_escape(builtins[i][1], escaped_detail, sizeof(escaped_detail));
-    pos += snprintf(completions + pos, remaining - pos,
-                    "{\"label\":\"%s\",\"kind\":3,\"detail\":\"%s\"}", escaped,
-                    escaped_detail);
+    int written = snprintf(completions + pos, remaining - pos,
+                           "{\"label\":\"%s\",\"kind\":3,\"detail\":\"%s\"}", escaped,
+                           escaped_detail);
+    if (written > 0 && (size_t)written < remaining - pos) {
+      pos += (size_t)written;
+      remaining -= (size_t)written;
+    } else {
+      break; // Buffer full
+    }
   }
 
   // Add document symbols (variables and functions)
