@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Auto-label issue
-        uses: actions/labeler@v4
+        uses: actions/labeler@v6
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           configuration-path: .github/labeler.yml
@@ -30,26 +30,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Auto-label based on title and body
-        uses: actions/labeler@v4
+        uses: actions/labeler@v6
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           configuration-path: .github/labeler.yml
           sync-labels: true
 
       - name: Auto-label based on changed files
-        uses: actions/labeler@v4
+        uses: actions/labeler@v6
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           configuration-path: .github/labeler-files.yml
           sync-labels: true
 
       - name: Label based on commit type
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: commits } = await github.rest.pulls.listCommits({
@@ -59,7 +59,7 @@ jobs:
             });
 
             const labels = new Set();
-            
+
             // Check commit messages for type prefixes
             for (const commit of commits) {
               const message = commit.commit.message;
