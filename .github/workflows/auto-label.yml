@@ -4,7 +4,7 @@ on:
   issues:
     types: [opened, edited]
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited]
 
 permissions:
   contents: read
@@ -122,62 +122,45 @@ jobs:
           configuration-path: .github/labeler-files.yml
           sync-labels: true
 
-      - name: Label based on commit type
+      - name: Label based on PR title
         uses: actions/github-script@v8
         with:
           script: |
-            let commits;
-            try {
-              const response = await github.rest.pulls.listCommits({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number,
-              });
-              commits = response.data;
-            } catch (error) {
-              console.error('Failed to fetch commits:', error);
-              core.setFailed(`Failed to fetch commits for PR #${context.issue.number}: ${error.message}`);
-              return;
+            const title = context.payload.pull_request.title;
+            let label = null;
+
+            if (/^\(feat\):/i.test(title)) {
+              label = 'enhancement';
+            } else if (/^\(fix\):/i.test(title)) {
+              label = 'bug';
+            } else if (/^\(docs\):/i.test(title)) {
+              label = 'documentation';
+            } else if (/^\(test\):/i.test(title)) {
+              label = 'test';
+            } else if (/^\(refactor\):/i.test(title)) {
+              label = 'refactor';
+            } else if (/^\(chore\):/i.test(title)) {
+              label = 'chore';
+            } else if (/^\(perf\):/i.test(title)) {
+              label = 'performance';
+            } else if (/^\(ci\):/i.test(title)) {
+              label = 'ci';
+            } else if (/^\(style\):/i.test(title)) {
+              label = 'style';
+            } else if (/^\(breaking\):/i.test(title)) {
+              label = 'breaking';
             }
 
-            const labels = new Set();
-
-            // Check commit messages for type prefixes
-            for (const commit of commits) {
-              const message = commit.commit.message;
-              
-              if (/\(feat\):/i.test(message)) {
-                labels.add('enhancement');
-              }
-              if (/\(fix\):/i.test(message)) {
-                labels.add('bug');
-              }
-              if (/\(docs\):/i.test(message)) {
-                labels.add('documentation');
-              }
-              if (/\(test\):/i.test(message)) {
-                labels.add('test');
-              }
-              if (/\(refactor\):/i.test(message)) {
-                labels.add('refactor');
-              }
-              if (/\(chore\):/i.test(message)) {
-                labels.add('chore');
-              }
-            }
-
-            // Add labels if any were found
-            if (labels.size > 0) {
+            if (label) {
               try {
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: context.issue.number,
-                  labels: Array.from(labels),
+                  labels: [label],
                 });
               } catch (error) {
-                console.error('Failed to add labels:', error);
-                core.setFailed(`Failed to add labels to PR #${context.issue.number}: ${error.message}`);
-                return;
+                console.error('Failed to add label:', error);
+                core.setFailed(`Failed to add label to PR #${context.issue.number}: ${error.message}`);
               }
             }
