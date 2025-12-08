@@ -592,7 +592,9 @@ static char *value_to_string_repr(KronosValue *val) {
     double frac = modf(val->as.number, &intpart);
     size_t len;
     // Use scientific notation for large numbers to prevent buffer overflow (buffer is 64 bytes)
-    if (frac == 0.0 && fabs(val ->as.number) < 1.0e15) {
+    
+    if (frac == 0.0 && fabs(val->as.number) < 1.0e15) {
+  
       len = (size_t)snprintf(str_buf, 64, "%.0f", val->as.number);
     } else {
       len = (size_t)snprintf(str_buf, 64, "%g", val->as.number);
@@ -1342,34 +1344,57 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
       // Check for built-in functions first
       const char *func_name = name_val->as.string.data;
 
-      // Built-in: read_file(path)
-      if (strcmp(func_name, "read_file") == 0) {
-        if (arg_count != 1) return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Expected 1 argument");
-        KronosValue *path_val = pop(vm);
-        if (!path_val) return vm_propagate_error(vm, KRONOS_ERR_RUNTIME);
-        if (path_val->type != VAL_STRING) {
+      
+      // Built-in: read_file(path)       // Built-in: read_file(path)
+       if (strcmp(func_name, "read_file") == 0) {
+         if (arg_count != 1) return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Expected 1 argument");
+         KronosValue *path_val = pop(vm);
+         if (!path_val) return vm_propagate_error(vm, KRONOS_ERR_RUNTIME);
+         if (path_val->type != VAL_STRING) {
+           value_release(path_val);
+           return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Path must be a string");
+         }
+         FILE *file = fopen(path_val->as.string.data, "rb");
+         if (!file) {
+           value_release(path_val);
+           return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Could not open file");
+         }
+         fseek(file, 0L, SEEK_END);
+         long fsize = ftell(file);
+        if (fsize < 0) {
+          fclose(file);
           value_release(path_val);
-          return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Path must be a string");
+          return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Failed to get file size");
         }
-        FILE *file = fopen(path_val->as.string.data, "rb");
-        if (!file) {
+         rewind(file);
+        if (fsize > SIZE_MAX - 1) {
+          fclose(file);
           value_release(path_val);
-          return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Could not open file");
+          return vm_errorf(vm, KRONOS_ERR_RUNTIME, "File too large");
         }
-        fseek(file, 0L, SEEK_END);
-        long fsize = ftell(file);
-        rewind(file);
-        char *buff = malloc(fsize + 1);
-        fread(buff, 1, fsize, file);
-        buff[fsize] = 0;
-        fclose(file);
-        KronosValue *res = value_new_string(buff, fsize);
-        free(buff);
-        push(vm, res);
-        value_release(res);
-        value_release(path_val);
-        break;
-      }
+         char *buff = malloc(fsize + 1);
+        if (!buff) {
+          fclose(file);
+          value_release(path_val);
+          return vm_error(vm, KRONOS_ERR_INTERNAL, "Failed to allocate memory");
+        }
+        size_t bytes_read = fread(buff, 1, fsize, file);
+        if (bytes_read != (size_t)fsize) {
+          free(buff);
+          fclose(file);
+          value_release(path_val);
+          return vm_errorf(vm, KRONOS_ERR_RUNTIME, "Failed to read file");
+        }
+        buff[bytes_read] = '\0';
+         fclose(file);
+        KronosValue *res = value_new_string(buff, bytes_read);
+         free(buff);
+         push(vm, res);
+         value_release(res);
+         value_release(path_val);
+         break;
+       }
+
       // Check for module.function syntax (e.g., math.sqrt)
       const char *dot = strchr(func_name, '.');
       if (dot) {
@@ -1962,7 +1987,8 @@ int vm_execute(KronosVM *vm, Bytecode *bytecode) {
           // Check if it's a whole number
           double intpart;
           double frac = modf(arg->as.number, &intpart);
-          if (frac == 0.0 && fabs(arg -> as.number) < 1.0e15 ){
+        
+          if (frac == 0.0 && fabs(arg->as.number) < 1.0e15) {
             str_len = (size_t)snprintf(str_buf, 64, "%.0f", arg->as.number);
           } else {
             str_len = (size_t)snprintf(str_buf, 64, "%g", arg->as.number);
